@@ -4,6 +4,7 @@ import { BattleScreen } from './ui/components/BattleScreen';
 import { DropScreen } from './ui/components/DropScreen';
 import { ResultScreen } from './ui/components/ResultScreen';
 import { DebugPanel } from './ui/components/DebugPanel';
+import { IntroModal } from './ui/components/IntroModal';
 
 function Root() {
   const { state } = useGame();
@@ -14,6 +15,7 @@ function Root() {
       {state.phase === 'drop' && <DropScreen />}
       {state.phase === 'result' && <ResultScreen />}
       <DebugPanel />
+      <IntroModal />
     </div>
   );
 }

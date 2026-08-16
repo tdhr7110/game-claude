@@ -3,6 +3,12 @@ import type { ActiveSynergies } from './synergyEngine';
 
 export type OnHitEffect = { kind: 'apply_poison'; amount: number } | { kind: 'apply_burn'; dps: number; duration: number };
 
+// 頭・口・目1個につき会心率+5%（最大65%）。「目が多いほどクリティカル率UP」を
+// 閾値シナジーではなく連続スケーリングで表現し、装着数そのものが選択の悩みどころになるようにする。
+export const CRIT_CHANCE_PER_HEAD = 0.05;
+export const CRIT_CHANCE_CAP = 0.65;
+export const BASE_CRIT_MULTIPLIER = 1.75;
+
 export interface CombatantModifiers {
   attackSpeedGlobalPct: number;
   attackSpeedTypePct: Record<PartType, number>;
@@ -22,6 +28,8 @@ export interface CombatantModifiers {
   onTypeAttackCountProcs: { targetType: PartType; every: number }[];
   onTypeAttackChanceProcs: { targetType: PartType; chance: number }[];
   auraOnHitByType: Partial<Record<PartType, OnHitEffect[]>>;
+  critChance: number;
+  critMultiplier: number;
 }
 
 export function emptyModifiers(): CombatantModifiers {
@@ -44,6 +52,8 @@ export function emptyModifiers(): CombatantModifiers {
     onTypeAttackCountProcs: [],
     onTypeAttackChanceProcs: [],
     auraOnHitByType: {},
+    critChance: 0,
+    critMultiplier: BASE_CRIT_MULTIPLIER,
   };
 }
 
@@ -91,6 +101,9 @@ function applyStatic(mods: CombatantModifiers, kind: string, e: any) {
     case 'battle_start_defense':
       mods.battleStartDefense += e.amount;
       break;
+    case 'crit_multiplier_bonus':
+      mods.critMultiplier += e.amount;
+      break;
     case 'type_double_activation_chance':
       mods.typeDoubleActivationChance[e.targetType as PartType] = Math.max(
         mods.typeDoubleActivationChance[e.targetType as PartType] ?? 0,
@@ -131,6 +144,8 @@ const STATIC_SYNERGY_KINDS = new Set<SynergyEffect['kind']>([
 export function computeModifiers(equippedDefs: PartDef[], synergies: ActiveSynergies): CombatantModifiers {
   const mods = emptyModifiers();
   const legCount = equippedDefs.filter((p) => p.type === 'leg').length;
+  const headCount = equippedDefs.filter((p) => p.type === 'head').length;
+  mods.critChance = Math.min(CRIT_CHANCE_CAP, headCount * CRIT_CHANCE_PER_HEAD);
 
   for (const def of equippedDefs) {
     for (const e of def.effects as PartEffect[]) {

@@ -3,6 +3,7 @@ import { useGame } from '../GameContext';
 import { equippedDefs, getCapacityInfo, getMaxHp, tierOfCurrentBattle, BATTLE_SEQUENCE, TOTAL_BATTLES } from '../../engine/run';
 import { getPartDef } from '../../data/parts';
 import { computeActiveSynergies } from '../../engine/synergyEngine';
+import { computeModifiers } from '../../engine/modifiers';
 import { previewCostForNewPart } from '../../engine/capacity';
 import { PartCard } from './PartCard';
 import { PartDetailPanel } from './PartDetailPanel';
@@ -12,12 +13,13 @@ import { SynergyPanel } from './SynergyPanel';
 const SLOT_LABEL: Record<string, string> = { normal: '通常戦', elite: '強敵戦', miniboss: '中ボス戦', boss: '最終ボス戦' };
 
 export function PrepScreen() {
-  const { state, dispatch, equipError, setEquipError } = useGame();
+  const { state, dispatch, equipError, setEquipError, setShowIntro } = useGame();
   const [selectedDefId, setSelectedDefId] = useState<string | null>(null);
 
   const eqDefs = useMemo(() => equippedDefs(state), [state]);
   const capacity = useMemo(() => getCapacityInfo(state), [state]);
   const synergies = useMemo(() => computeActiveSynergies(eqDefs), [eqDefs]);
+  const critChancePct = useMemo(() => Math.round(computeModifiers(eqDefs, synergies).critChance * 100), [eqDefs, synergies]);
   const maxHp = getMaxHp(state);
   const slot = tierOfCurrentBattle(state);
 
@@ -42,8 +44,13 @@ export function PrepScreen() {
     <div className="screen prep-screen">
       <header className="screen__header">
         <h1>🧬 戦闘準備 — 第{state.battleIndex}戦 / 全{TOTAL_BATTLES}戦（{SLOT_LABEL[slot]}）</h1>
-        <div className="hp-readout">
-          ❤️ コアHP {state.coreHp} / {maxHp}
+        <div className="header-right">
+          <div className="hp-readout" title="コアHPが0になると敗北です。勝利するまで戦闘間で持ち越されます">
+            ❤️ コアHP {state.coreHp} / {maxHp}
+          </div>
+          <button className="btn btn--small btn--ghost" onClick={() => setShowIntro(true)} title="遊び方を表示">
+            ❓遊び方
+          </button>
         </div>
       </header>
 
@@ -106,7 +113,7 @@ export function PrepScreen() {
             <p className="muted">部位カードを選択すると詳細が表示されます</p>
           )}
           <h2>シナジー状況</h2>
-          <SynergyPanel synergies={synergies} />
+          <SynergyPanel synergies={synergies} critChancePct={critChancePct} />
         </div>
       </div>
 

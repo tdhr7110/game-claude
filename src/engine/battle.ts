@@ -46,7 +46,7 @@ interface Combatant {
   attackCountByType: Partial<Record<PartType, number>>;
   reviveUsed: boolean;
   isDead: boolean;
-  stats: { damageDealt: number; healed: number };
+  stats: { damageDealt: number; healed: number; critCount: number };
 }
 
 export interface PartSnapshot {
@@ -69,10 +69,11 @@ export interface CombatantSnapshot {
   defense: number;
   damageReductionPct: number;
   evasionPct: number;
+  critPct: number;
   poison: number;
   burn: BurnState | null;
   parts: PartSnapshot[];
-  stats: { damageDealt: number; healed: number };
+  stats: { damageDealt: number; healed: number; critCount: number };
   isDead: boolean;
 }
 
@@ -139,7 +140,7 @@ export class BattleEngine {
       attackCountByType: {},
       reviveUsed: false,
       isDead: false,
-      stats: { damageDealt: 0, healed: 0 },
+      stats: { damageDealt: 0, healed: 0, critCount: 0 },
     };
 
     const enemyMods: CombatantModifiers = emptyModifiers();
@@ -162,7 +163,7 @@ export class BattleEngine {
       attackCountByType: {},
       reviveUsed: false,
       isDead: false,
-      stats: { damageDealt: 0, healed: 0 },
+      stats: { damageDealt: 0, healed: 0, critCount: 0 },
     };
 
     this.pushLog(`戦闘開始: ${enemyDef.name} が現れた！`);
@@ -260,13 +261,18 @@ export class BattleEngine {
     if (defender.burn && attacker.mods.damageVsBurningMult !== 1) {
       rawDamage *= attacker.mods.damageVsBurningMult;
     }
+    const isCrit = attacker.mods.critChance > 0 && Math.random() < attacker.mods.critChance;
+    if (isCrit) rawDamage *= attacker.mods.critMultiplier;
     const finalDamage = this.applyDefenseAndReduction(rawDamage, defender);
     const applied = this.dealDamage(defender, finalDamage);
     attacker.stats.damageDealt += applied;
+    if (isCrit) attacker.stats.critCount += 1;
     if (this.verbose) {
       this.pushLog(
-        `${attacker.name}の${part.icon}${part.name}: 基礎${Math.round(rawDamage)} → 防御${defender.defense}/軽減${defender.damageReductionPct}% 適用後 ${applied}`
+        `${attacker.name}の${part.icon}${part.name}: 基礎${Math.round(rawDamage)}${isCrit ? '(会心)' : ''} → 防御${defender.defense}/軽減${defender.damageReductionPct}% 適用後 ${applied}`
       );
+    } else if (isCrit) {
+      this.pushLog(`💥 会心の一撃！${attacker.name}の${part.icon}${part.name}が${defender.name}に${applied}ダメージ`);
     } else {
       this.pushLog(`${attacker.name}の${part.icon}${part.name}が${defender.name}に${applied}ダメージ`);
     }
@@ -476,6 +482,7 @@ export class BattleEngine {
       defense: c.defense,
       damageReductionPct: c.damageReductionPct,
       evasionPct: c.evasionPct,
+      critPct: Math.round(c.mods.critChance * 100),
       poison: c.poison.value,
       burn: c.burn ? { ...c.burn } : null,
       parts: c.parts.map((p) => ({

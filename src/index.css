@@ -68,6 +68,13 @@ h3 {
   color: var(--success);
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .muted {
   color: var(--text-muted);
   font-size: 0.9em;
@@ -389,6 +396,53 @@ h3 {
   font-weight: bold;
 }
 
+/* --- Intro Modal --- */
+.intro-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 6, 14, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 16px;
+}
+.intro-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  padding: 24px;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+.intro-card__title {
+  font-size: 1.3em;
+  font-weight: bold;
+  margin-bottom: 14px;
+  text-align: center;
+}
+.intro-card__list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.intro-card__list li {
+  font-size: 0.95em;
+  line-height: 1.5;
+}
+.intro-card__hint {
+  font-size: 0.82em;
+  color: var(--text-muted);
+  margin: 0 0 16px;
+}
+.intro-card .btn--large {
+  width: 100%;
+}
+
 .combatant-panel {
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -590,4 +644,205 @@ body.debug-open {
 /* --- Result Screen --- */
 .result-screen .part-grid {
   margin-bottom: 20px;
+}
+
+.crit-stat {
+  color: var(--warn);
+  font-weight: bold;
+}
+
+/* ============================================================
+   スマホ縦画面向けレスポンシブ対応
+   PC表示（上記のデフォルトスタイル）は変更せず、
+   640px以下のときだけコンパクトなレイアウトに切り替える。
+   ============================================================ */
+@media (max-width: 640px) {
+  .app-root {
+    padding: 8px 8px 56px;
+  }
+
+  .screen__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+  }
+  .screen__header h1 {
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+  .hp-readout {
+    font-size: 0.9em;
+  }
+  .screen h2 {
+    font-size: 0.95em;
+    margin-top: 12px;
+  }
+
+  .btn {
+    padding: 7px 12px;
+    font-size: 0.9em;
+  }
+
+  /* --- 戦闘準備・ドロップ画面: 1カラムに積む --- */
+  .prep-layout {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .prep-col--narrow {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding-left: 0;
+    padding-top: 12px;
+  }
+  .screen__footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .screen__footer .btn--large {
+    width: 100%;
+  }
+
+  .part-card {
+    width: 94px;
+    min-height: 96px;
+    padding: 6px;
+    gap: 2px;
+  }
+  .part-card__icon {
+    font-size: 1.3em;
+  }
+  .part-card__name {
+    font-size: 0.78em;
+  }
+  .part-card__meta {
+    font-size: 0.62em;
+    gap: 2px;
+  }
+  .part-card__stats {
+    font-size: 0.65em;
+    gap: 4px;
+  }
+  .part-grid {
+    gap: 8px;
+  }
+
+  .drop-candidates {
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .drop-detail {
+    max-width: 100%;
+  }
+  .drop-actions {
+    flex-direction: column;
+  }
+  .drop-actions .btn {
+    width: 100%;
+  }
+
+  /* --- 戦闘画面: 自キャラ・敵を横並びのまま極力コンパクトに --- */
+  .battle-layout {
+    grid-template-columns: 1fr 18px 1fr;
+    gap: 4px;
+  }
+  .battle-center {
+    padding-top: 2px;
+  }
+  .battle-center__vs {
+    font-size: 0.65em;
+    writing-mode: vertical-rl;
+  }
+  .battle-overlay__title {
+    font-size: 1.4em;
+    text-align: center;
+    padding: 0 16px;
+  }
+
+  .combatant-panel {
+    padding: 8px;
+    border-radius: 8px;
+  }
+  .combatant-panel__name {
+    font-size: 0.82em;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hp-bar {
+    height: 16px;
+    margin-bottom: 4px;
+  }
+  .hp-bar__label {
+    font-size: 0.68em;
+  }
+  .combatant-panel__row {
+    gap: 5px;
+    margin: 2px 0;
+    font-size: 0.68em;
+  }
+  .status-badge {
+    font-size: 0.62em;
+    padding: 1px 5px;
+  }
+
+  .part-activity-list {
+    max-height: 30vh;
+    gap: 3px;
+    margin-top: 6px;
+  }
+  .part-activity {
+    grid-template-columns: 13px 1fr 26px;
+    gap: 3px;
+    font-size: 0.65em;
+  }
+  .part-activity__bar {
+    height: 5px;
+  }
+
+  .battle-footer {
+    margin-top: 8px;
+  }
+  .speed-controls {
+    gap: 4px;
+    margin-bottom: 6px;
+    font-size: 0.8em;
+  }
+  .battle-log {
+    height: 70px;
+    padding: 5px 8px;
+    font-size: 0.66em;
+  }
+
+  /* --- デバッグパネル: 画面を押しのけず全幅オーバーレイに --- */
+  body.debug-open {
+    padding-right: 0;
+  }
+  .debug-panel {
+    width: 100%;
+  }
+  .debug-toggle {
+    padding: 5px 10px;
+    font-size: 0.8em;
+  }
+
+  /* --- 結果画面 --- */
+  .result-screen .muted {
+    font-size: 0.8em;
+  }
+
+  /* --- 初回説明モーダル --- */
+  .intro-card {
+    padding: 18px;
+  }
+  .intro-card__title {
+    font-size: 1.1em;
+  }
+  .intro-card__list li {
+    font-size: 0.85em;
+  }
 }

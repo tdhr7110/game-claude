@@ -26,6 +26,9 @@ function scorePart(def: PartDef, hpRatio: number): number {
   const dps = def.attack > 0 ? def.attack / def.interval : 0;
   score += dps * 1.2;
   score += def.hpBonus * 0.3;
+  // 頭・口・目は装着数に応じて会心率が上がる（+5%/個、会心倍率1.75x）ため、
+  // 単純なdpsだけでなく期待値上の火力上昇分も軽く加点する
+  if (def.type === 'head') score += 3;
   for (const e of def.effects) {
     if (e.kind === 'heal_tick') score += (e.amount / Math.max(0.5, def.interval || 1)) * (hpRatio < 0.6 ? 3 : 1);
     if (e.kind === 'damage_reduction_pct') score += e.pct * (hpRatio < 0.6 ? 1.5 : 0.8);
@@ -33,6 +36,7 @@ function scorePart(def: PartDef, hpRatio: number): number {
     if (e.kind === 'capacity_bonus') score += e.amount * 1.5;
     if (e.kind === 'battle_start_defense') score += e.amount * 0.5;
     if (e.kind === 'revive_once') score += 5;
+    if (e.kind === 'crit_multiplier_bonus') score += e.amount * 4;
   }
   if (def.rarity === 'uncommon') score *= 1.1;
   if (def.rarity === 'rare') score *= 1.25;

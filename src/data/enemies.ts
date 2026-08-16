@@ -107,7 +107,7 @@ const ELITE_ENEMIES: EnemyDef[] = [
     name: '昆虫女王',
     species: 'insect',
     tier: 'elite',
-    hp: 60,
+    hp: 65,
     defense: 1,
     damageReductionPct: 0,
     evasionPct: 10,
@@ -115,8 +115,8 @@ const ELITE_ENEMIES: EnemyDef[] = [
     icon: '👑',
     color: '#4d7c0f',
     moves: [
-      { id: 'm1', name: '毒針乱舞', attack: 2, interval: 1.1, tags: ['poison'], effects: [{ kind: 'apply_poison', amount: 1 }], icon: '🪡' },
-      { id: 'm2', name: '鎌撃', attack: 2, interval: 1.1, tags: [], effects: [], icon: '⚔️' },
+      { id: 'm1', name: '毒針乱舞', attack: 3, interval: 1.1, tags: ['poison'], effects: [{ kind: 'apply_poison', amount: 1 }], icon: '🪡' },
+      { id: 'm2', name: '鎌撃', attack: 3, interval: 1.1, tags: [], effects: [], icon: '⚔️' },
     ],
   },
   {
@@ -124,16 +124,16 @@ const ELITE_ENEMIES: EnemyDef[] = [
     name: '巨像ゴーレム',
     species: 'golem',
     tier: 'elite',
-    hp: 75,
-    defense: 3,
-    damageReductionPct: 6,
+    hp: 85,
+    defense: 4,
+    damageReductionPct: 7,
     evasionPct: 0,
     description: '一撃が致命的な質量を持つ歩く要塞。',
     icon: '🗿',
     color: '#44403c',
     moves: [
-      { id: 'm1', name: '大岩拳', attack: 5, interval: 2.4, tags: [], effects: [], icon: '👊' },
-      { id: 'm2', name: '地割れ', attack: 4, interval: 3.0, tags: [], effects: [], icon: '🌋' },
+      { id: 'm1', name: '大岩拳', attack: 7, interval: 2.4, tags: [], effects: [], icon: '👊' },
+      { id: 'm2', name: '地割れ', attack: 5, interval: 3.0, tags: [], effects: [], icon: '🌋' },
     ],
   },
   {
@@ -141,7 +141,7 @@ const ELITE_ENEMIES: EnemyDef[] = [
     name: '双頭竜',
     species: 'dragon',
     tier: 'elite',
-    hp: 70,
+    hp: 75,
     defense: 1,
     damageReductionPct: 0,
     evasionPct: 5,
@@ -149,8 +149,8 @@ const ELITE_ENEMIES: EnemyDef[] = [
     icon: '🐉',
     color: '#c2410c',
     moves: [
-      { id: 'm1', name: '火炎ブレス', attack: 3, interval: 2.0, tags: ['fire'], effects: [{ kind: 'apply_burn', dps: 1, duration: 4 }], icon: '🔥' },
-      { id: 'm2', name: '爪撃', attack: 3, interval: 1.2, tags: [], effects: [], icon: '🐾' },
+      { id: 'm1', name: '火炎ブレス', attack: 4, interval: 2.0, tags: ['fire'], effects: [{ kind: 'apply_burn', dps: 2, duration: 4 }], icon: '🔥' },
+      { id: 'm2', name: '爪撃', attack: 4, interval: 1.2, tags: [], effects: [], icon: '🐾' },
     ],
   },
 ];
@@ -160,9 +160,10 @@ function scaleMove(move: EnemyMove, atkMult: number): EnemyMove {
 }
 
 // 戦闘番号(1-8)に応じて敵をスケーリングする
+// 序盤は緩やかに、終盤にかけて急激に強くなる曲線（終盤はビルドを考えないと厳しい水準を狙う）
 export function scaleEnemy(def: EnemyDef, battleIndex: number): EnemyDef {
-  const hpMult = 1 + (battleIndex - 1) * 0.16;
-  const atkMult = 1 + (battleIndex - 1) * 0.08;
+  const hpMult = 1 + (battleIndex - 1) * 0.2;
+  const atkMult = 1 + (battleIndex - 1) * 0.11;
   return {
     ...def,
     hp: Math.round(def.hp * hpMult),
@@ -189,10 +190,10 @@ export function buildMiniboss(excludeIds: string[] = []): EnemyDef {
     id: `${base.id}_miniboss`,
     name: `【中ボス】強化${base.name}`,
     tier: 'miniboss',
-    hp: Math.round(base.hp * 1.3),
-    defense: base.defense + 2,
-    damageReductionPct: base.damageReductionPct + 3,
-    moves: base.moves.map((m) => scaleMove(m, 1.1)),
+    hp: Math.round(base.hp * 1.6),
+    defense: base.defense + 4,
+    damageReductionPct: base.damageReductionPct + 6,
+    moves: base.moves.map((m) => scaleMove(m, 1.3)),
   };
 }
 
@@ -203,18 +204,18 @@ export function buildFinalBoss(): EnemyDef {
     name: '大キメラ',
     species: 'chimera',
     tier: 'boss',
-    hp: 320,
-    defense: 4,
-    damageReductionPct: 6,
-    evasionPct: 6,
+    hp: 580,
+    defense: 6,
+    damageReductionPct: 10,
+    evasionPct: 8,
     description: '昆虫・ゴーレム・ドラゴンの部位を寄せ集めた、この地の頂点。',
     icon: '👹',
     color: '#581c87',
     moves: [
-      { id: 'm1', name: '複合爪撃', attack: 4, interval: 1.0, tags: [], effects: [], icon: '🐾' },
-      { id: 'm2', name: '猛毒噴射', attack: 3, interval: 1.6, tags: ['poison'], effects: [{ kind: 'apply_poison', amount: 2 }], icon: '☠️' },
-      { id: 'm3', name: '灼熱ブレス', attack: 4, interval: 2.2, tags: ['fire'], effects: [{ kind: 'apply_burn', dps: 3, duration: 5 }], icon: '🔥' },
-      { id: 'm4', name: '巨腕の一撃', attack: 9, interval: 3.2, tags: [], effects: [], icon: '👊' },
+      { id: 'm1', name: '複合爪撃', attack: 5, interval: 1.0, tags: [], effects: [], icon: '🐾' },
+      { id: 'm2', name: '猛毒噴射', attack: 4, interval: 1.6, tags: ['poison'], effects: [{ kind: 'apply_poison', amount: 2 }], icon: '☠️' },
+      { id: 'm3', name: '灼熱ブレス', attack: 5, interval: 2.2, tags: ['fire'], effects: [{ kind: 'apply_burn', dps: 3, duration: 5 }], icon: '🔥' },
+      { id: 'm4', name: '巨腕の一撃', attack: 11, interval: 3.2, tags: [], effects: [], icon: '👊' },
     ],
   };
 }

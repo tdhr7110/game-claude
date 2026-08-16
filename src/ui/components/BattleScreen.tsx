@@ -26,22 +26,28 @@ function CombatantPanel({ c, side }: { c: CombatantSnapshot; side: 'player' | 'e
       </div>
       <HpBar hp={c.hp} maxHp={c.maxHp} color={side === 'player' ? '#4ade80' : '#f87171'} />
       <div className="combatant-panel__row">
-        <span title="防御力">🛡️防御 {c.defense}</span>
-        <span title="被ダメージ軽減率">📉軽減 {c.damageReductionPct}%</span>
-        <span title="回避率">💨回避 {c.evasionPct}%</span>
+        <span title="防御力">🛡️{c.defense}</span>
+        <span title="被ダメージ軽減率">📉{c.damageReductionPct}%</span>
+        <span title="回避率">💨{c.evasionPct}%</span>
+        {c.critPct > 0 && (
+          <span title="会心率（頭・口・目の装着数で上昇）" className="crit-stat">
+            💥{c.critPct}%
+          </span>
+        )}
       </div>
       <div className="combatant-panel__row">
-        {c.poison > 0 && <span className="status-badge status-badge--poison">☠️ 毒 {c.poison}</span>}
+        {c.poison > 0 && <span className="status-badge status-badge--poison">☠️毒{c.poison}</span>}
         {c.burn && (
           <span className="status-badge status-badge--burn">
-            🔥 炎上 {Math.round(c.burn.dps * 10) / 10}/秒（残{Math.round(c.burn.timeLeft * 10) / 10}s）
+            🔥炎上{Math.round(c.burn.dps * 10) / 10}/秒(残{Math.round(c.burn.timeLeft * 10) / 10}s)
           </span>
         )}
         {c.poison === 0 && !c.burn && <span className="muted">状態異常なし</span>}
       </div>
       <div className="combatant-panel__row">
-        <span>⚔️ 与ダメ計 {c.stats.damageDealt}</span>
-        <span>💚 回復計 {c.stats.healed}</span>
+        <span>⚔️与ダメ{c.stats.damageDealt}</span>
+        <span>💚回復{c.stats.healed}</span>
+        {c.stats.critCount > 0 && <span className="crit-stat">💥会心×{c.stats.critCount}</span>}
       </div>
       <div className="part-activity-list">
         {c.parts.length === 0 && <p className="muted">攻撃・パッシブ部位なし</p>}

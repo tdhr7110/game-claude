@@ -4,9 +4,10 @@ import { SPECIES_ICONS, TYPE_ICONS } from '../format';
 
 interface SynergyPanelProps {
   synergies: ActiveSynergies;
+  critChancePct?: number;
 }
 
-export function SynergyPanel({ synergies }: SynergyPanelProps) {
+export function SynergyPanel({ synergies, critChancePct }: SynergyPanelProps) {
   const partTypes = Object.keys(synergies.partType) as PartType[];
   const speciesList = Object.keys(synergies.species) as Exclude<Species, 'none'>[];
 
@@ -23,6 +24,9 @@ export function SynergyPanel({ synergies }: SynergyPanelProps) {
                 <span>{TYPE_ICONS[t]} {PART_TYPE_LABELS[t]}</span>
                 <span className="muted">{g.count}個装着</span>
               </div>
+              {t === 'head' && !!critChancePct && (
+                <div className="synergy-row__tier synergy-row__tier--active">💥 会心率 {critChancePct}%（1個につき+5%、最大65%）</div>
+              )}
               {g.activeTiers.map((tier) => (
                 <div key={tier.count} className="synergy-row__tier synergy-row__tier--active">
                   ✅ {tier.count}個: {tier.description}

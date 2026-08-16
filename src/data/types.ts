@@ -68,7 +68,8 @@ export type PartEffect =
   | { kind: 'defense_to_damage'; pct: number }
   | { kind: 'poison_no_decay_chance'; chance: number }
   | { kind: 'on_poison_apply_gain_defense'; amount: number }
-  | { kind: 'revive_once'; hpPct: number };
+  | { kind: 'revive_once'; hpPct: number }
+  | { kind: 'crit_multiplier_bonus'; amount: number };
 
 export interface PartDef {
   id: string;

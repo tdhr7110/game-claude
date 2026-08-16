@@ -431,13 +431,14 @@ const DRAGON_PARTS: PartDef[] = [
     attack: 8,
     interval: 1.8,
     description: '二つの頭が同時に炎のブレスを放つ。',
-    passiveDescription: '攻撃命中時、炎上(5dmg/秒・4秒)を付与。状態異常の付与量+1',
+    passiveDescription: '攻撃命中時、炎上(5dmg/秒・4秒)を付与。状態異常の付与量+1。会心ダメージ倍率+0.3',
     tags: ['fire', 'multihit'],
     icon: '🐉',
     color: '#ea580c',
     effects: [
       { kind: 'apply_burn', dps: 5, duration: 4 },
       { kind: 'status_amount_bonus', amount: 1 },
+      { kind: 'crit_multiplier_bonus', amount: 0.3 },
     ],
   },
 ];

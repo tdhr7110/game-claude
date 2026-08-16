@@ -68,6 +68,8 @@ interface GameContextValue {
   battleEngineRef: React.MutableRefObject<BattleEngine | null>;
   equipError: string | null;
   setEquipError: (msg: string | null) => void;
+  showIntro: boolean;
+  setShowIntro: (v: boolean) => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -77,10 +79,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const battleEngineRef = useRef<BattleEngine | null>(null);
   const [equipError, setEquipErrorState] = React.useState<string | null>(null);
   const setEquipError = useCallback((msg: string | null) => setEquipErrorState(msg), []);
+  const [showIntro, setShowIntro] = React.useState(true);
 
   const value = useMemo(
-    () => ({ state, dispatch, battleEngineRef, equipError, setEquipError }),
-    [state, equipError, setEquipError]
+    () => ({ state, dispatch, battleEngineRef, equipError, setEquipError, showIntro, setShowIntro }),
+    [state, equipError, setEquipError, showIntro]
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
