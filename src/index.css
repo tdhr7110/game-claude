@@ -443,6 +443,54 @@ h3 {
   width: 100%;
 }
 
+/* --- Chimera Gallery Modal --- */
+.gallery-card {
+  max-width: 560px;
+  max-height: 82vh;
+  overflow-y: auto;
+}
+.gallery-empty {
+  margin: 10px 0 16px;
+}
+.gallery-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+.gallery-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+.gallery-entry__icons {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 90px;
+  gap: 1px;
+  justify-content: center;
+}
+.gallery-entry__icon {
+  font-size: 1.1em;
+  line-height: 1.1;
+}
+.gallery-entry__info {
+  flex: 1;
+  min-width: 0;
+}
+.gallery-entry__name {
+  font-weight: bold;
+}
+.gallery-entry__sub {
+  font-size: 0.8em;
+}
+
 .combatant-panel {
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -646,9 +694,102 @@ body.debug-open {
   margin-bottom: 20px;
 }
 
+.naming-box {
+  background: var(--bg-panel);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 14px;
+  margin: 14px 0;
+}
+.naming-box__title {
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+.naming-box__row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.naming-box__input {
+  flex: 1;
+  min-width: 160px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 0.95em;
+}
+.naming-box--done {
+  color: var(--success);
+  font-size: 0.95em;
+}
+
 .crit-stat {
   color: var(--warn);
   font-weight: bold;
+}
+
+/* --- Chimera Avatar（装着部位を集合させたキメライメージ） --- */
+.chimera-avatar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px;
+  margin-bottom: 6px;
+  border-radius: 14px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.16), rgba(168, 85, 247, 0.02) 70%);
+  border: 1px dashed rgba(168, 85, 247, 0.35);
+  min-height: 56px;
+}
+.chimera-avatar__row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.chimera-avatar__zone {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  justify-content: center;
+  gap: 1px;
+  max-width: 110px;
+  min-height: 1.4em;
+}
+.chimera-avatar__zone--empty {
+  min-width: 4px;
+}
+.chimera-avatar__icon {
+  font-size: 1.25em;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+.chimera-avatar__more {
+  font-size: 0.65em;
+  color: var(--text-muted);
+  align-self: center;
+  margin-left: 2px;
+}
+.chimera-avatar__core-only {
+  font-size: 1.6em;
+  opacity: 0.6;
+  padding: 6px 0;
+}
+.chimera-avatar--sm {
+  padding: 4px;
+  min-height: 36px;
+  gap: 1px;
+}
+.chimera-avatar--sm .chimera-avatar__icon {
+  font-size: 0.95em;
+}
+.chimera-avatar--sm .chimera-avatar__row {
+  gap: 4px;
+}
+.chimera-avatar--sm .chimera-avatar__zone {
+  max-width: 70px;
 }
 
 /* ============================================================
@@ -834,6 +975,31 @@ body.debug-open {
   .result-screen .muted {
     font-size: 0.8em;
   }
+  .naming-box {
+    padding: 10px;
+  }
+  .naming-box__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .naming-box__row .btn {
+    width: 100%;
+  }
+
+  .chimera-avatar {
+    padding: 4px;
+    min-height: 40px;
+    margin-bottom: 4px;
+  }
+  .chimera-avatar__icon {
+    font-size: 1em;
+  }
+  .chimera-avatar__row {
+    gap: 4px;
+  }
+  .chimera-avatar__zone {
+    max-width: 76px;
+  }
 
   /* --- 初回説明モーダル --- */
   .intro-card {
@@ -844,5 +1010,20 @@ body.debug-open {
   }
   .intro-card__list li {
     font-size: 0.85em;
+  }
+
+  /* --- キメラ図鑑 --- */
+  .gallery-entry {
+    gap: 8px;
+    padding: 6px 8px;
+  }
+  .gallery-entry__icons {
+    max-width: 64px;
+  }
+  .gallery-entry__name {
+    font-size: 0.9em;
+  }
+  .gallery-entry__sub {
+    font-size: 0.72em;
   }
 }

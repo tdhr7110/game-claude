@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../GameContext';
 import { BattleEngine, type BattleSnapshot, type CombatantSnapshot, type SpeedSetting } from '../../engine/battle';
 import { getPartDef } from '../../data/parts';
 import { CORE_HP_BASE, BASE_DEFENSE } from '../../engine/run';
+import { ChimeraAvatar } from './ChimeraAvatar';
+import type { PartDef } from '../../data/types';
 
 const SPEED_OPTIONS: SpeedSetting[] = [0, 1, 2, 4];
 
@@ -18,12 +20,13 @@ function HpBar({ hp, maxHp, color }: { hp: number; maxHp: number; color: string 
   );
 }
 
-function CombatantPanel({ c, side }: { c: CombatantSnapshot; side: 'player' | 'enemy' }) {
+function CombatantPanel({ c, side, avatarDefs }: { c: CombatantSnapshot; side: 'player' | 'enemy'; avatarDefs?: PartDef[] }) {
   return (
     <div className={`combatant-panel combatant-panel--${side}`}>
       <div className="combatant-panel__name">
         {side === 'player' ? '🧬' : '👹'} {c.name} {c.isDead && <span className="danger-text">（撃破）</span>}
       </div>
+      {avatarDefs && <ChimeraAvatar defs={avatarDefs} size="sm" />}
       <HpBar hp={c.hp} maxHp={c.maxHp} color={side === 'player' ? '#4ade80' : '#f87171'} />
       <div className="combatant-panel__row">
         <span title="防御力">🛡️{c.defense}</span>
@@ -71,6 +74,7 @@ export function BattleScreen() {
   const [snapshot, setSnapshot] = useState<BattleSnapshot | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
+  const avatarDefs = useMemo(() => state.equipped.map((i) => getPartDef(i.defId)), [state.equipped]);
 
   useEffect(() => {
     if (!state.currentEnemy) return;
@@ -123,7 +127,7 @@ export function BattleScreen() {
       </header>
 
       <div className="battle-layout">
-        <CombatantPanel c={snapshot.player} side="player" />
+        <CombatantPanel c={snapshot.player} side="player" avatarDefs={avatarDefs} />
         <div className="battle-center">
           <div className="battle-center__vs">VS</div>
           {snapshot.status !== 'ongoing' && (

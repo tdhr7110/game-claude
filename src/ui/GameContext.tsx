@@ -17,6 +17,15 @@ import {
 } from '../engine/run';
 import type { BattleEngine } from '../engine/battle';
 
+export interface NamedChimera {
+  id: string;
+  name: string;
+  outcome: 'victory' | 'defeat';
+  battleReached: number;
+  icons: string[]; // 命名時点で装着していた部位アイコンのスナップショット
+  createdAt: number;
+}
+
 type Action =
   | { type: 'EQUIP'; instanceId: string }
   | { type: 'UNEQUIP'; instanceId: string }
@@ -70,6 +79,8 @@ interface GameContextValue {
   setEquipError: (msg: string | null) => void;
   showIntro: boolean;
   setShowIntro: (v: boolean) => void;
+  chimeraGallery: NamedChimera[];
+  addNamedChimera: (entry: Omit<NamedChimera, 'id' | 'createdAt'>) => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -80,10 +91,25 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [equipError, setEquipErrorState] = React.useState<string | null>(null);
   const setEquipError = useCallback((msg: string | null) => setEquipErrorState(msg), []);
   const [showIntro, setShowIntro] = React.useState(true);
+  const [chimeraGallery, setChimeraGallery] = React.useState<NamedChimera[]>([]);
+  const addNamedChimera = useCallback((entry: Omit<NamedChimera, 'id' | 'createdAt'>) => {
+    const chimera: NamedChimera = { ...entry, id: `chimera_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, createdAt: Date.now() };
+    setChimeraGallery((prev) => [chimera, ...prev]);
+  }, []);
 
   const value = useMemo(
-    () => ({ state, dispatch, battleEngineRef, equipError, setEquipError, showIntro, setShowIntro }),
-    [state, equipError, setEquipError, showIntro]
+    () => ({
+      state,
+      dispatch,
+      battleEngineRef,
+      equipError,
+      setEquipError,
+      showIntro,
+      setShowIntro,
+      chimeraGallery,
+      addNamedChimera,
+    }),
+    [state, equipError, setEquipError, showIntro, chimeraGallery, addNamedChimera]
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

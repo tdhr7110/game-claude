@@ -127,7 +127,7 @@ export class BattleEngine {
 
     this.player = {
       side: 'player',
-      name: 'プレイヤー',
+      name: 'キメラ',
       hp: Math.min(maxHp, setup.currentHp),
       maxHp,
       defense: setup.baseDefense + playerMods.battleStartDefense,
@@ -167,7 +167,7 @@ export class BattleEngine {
     };
 
     this.pushLog(`戦闘開始: ${enemyDef.name} が現れた！`);
-    if (this.player.defense > 0) this.pushLog(`プレイヤーの防御が${this.player.defense}になった`);
+    if (this.player.defense > 0) this.pushLog(`キメラの防御が${this.player.defense}になった`);
   }
 
   private makeRuntimePart(
@@ -448,7 +448,7 @@ export class BattleEngine {
     if (this.player.isDead || this.player.hp <= 0) {
       this.player.hp = 0;
       this.status = 'lost';
-      this.pushLog('💀 プレイヤーのコアが機能を停止した…敗北');
+      this.pushLog('💀 キメラのコアが機能を停止した…敗北');
       return true;
     }
     if (this.enemy.isDead || this.enemy.hp <= 0) {

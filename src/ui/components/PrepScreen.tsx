@@ -9,12 +9,15 @@ import { PartCard } from './PartCard';
 import { PartDetailPanel } from './PartDetailPanel';
 import { CapacityBar } from './CapacityBar';
 import { SynergyPanel } from './SynergyPanel';
+import { ChimeraAvatar } from './ChimeraAvatar';
+import { ChimeraGalleryModal } from './ChimeraGalleryModal';
 
 const SLOT_LABEL: Record<string, string> = { normal: '通常戦', elite: '強敵戦', miniboss: '中ボス戦', boss: '最終ボス戦' };
 
 export function PrepScreen() {
-  const { state, dispatch, equipError, setEquipError, setShowIntro } = useGame();
+  const { state, dispatch, equipError, setEquipError, setShowIntro, chimeraGallery } = useGame();
   const [selectedDefId, setSelectedDefId] = useState<string | null>(null);
+  const [showGallery, setShowGallery] = useState(false);
 
   const eqDefs = useMemo(() => equippedDefs(state), [state]);
   const capacity = useMemo(() => getCapacityInfo(state), [state]);
@@ -51,11 +54,17 @@ export function PrepScreen() {
           <button className="btn btn--small btn--ghost" onClick={() => setShowIntro(true)} title="遊び方を表示">
             ❓遊び方
           </button>
+          <button className="btn btn--small btn--ghost" onClick={() => setShowGallery(true)} title="記録したキメラを見る">
+            🏛️図鑑{chimeraGallery.length > 0 ? `(${chimeraGallery.length})` : ''}
+          </button>
         </div>
       </header>
 
+      {showGallery && <ChimeraGalleryModal onClose={() => setShowGallery(false)} />}
+
       <div className="prep-layout">
         <div className="prep-col">
+          <ChimeraAvatar defs={eqDefs} size="sm" />
           <CapacityBar used={capacity.used} total={capacity.total} />
           {equipError && <div className="error-banner">{equipError}</div>}
 
