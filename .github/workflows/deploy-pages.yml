@@ -35,6 +35,25 @@ jobs:
       - name: Type check & build
         run: npm run build
 
+      # 第1回アップデートのテスト版を /test/ サブパスに同梱し、正式版はそのまま配信する。
+      # テスト版の取得に失敗しても正式版のデプロイ自体は継続させる（continue-on-error）。
+      - name: Checkout test branch (アップデート検証用)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: test/chimera-butcher-update-1
+          path: test-branch
+
+      - name: Build test branch into /test/ subpath
+        if: hashFiles('test-branch/package.json') != ''
+        continue-on-error: true
+        run: |
+          cd test-branch
+          npm ci
+          npm run build -- --base=/game-claude/test/
+          mkdir -p ../dist/test
+          cp -r dist/. ../dist/test/
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
