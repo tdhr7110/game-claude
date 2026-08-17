@@ -22,7 +22,9 @@ export interface NamedChimera {
   name: string;
   outcome: 'victory' | 'defeat';
   battleReached: number;
-  icons: string[]; // 命名時点で装着していた部位アイコンのスナップショット
+  icons: string[]; // 命名時点で装着していた部位アイコンのスナップショット（表示用）
+  partIds: string[]; // 命名時点で装着していた部位のID（図鑑の詳細表示で参照する）
+  permanentCapacityBonus: number; // 命名時点の永続接続容量ボーナス（図鑑のビルド全体表示で接続容量を正しく計算するため）
   createdAt: number;
 }
 
@@ -36,10 +38,16 @@ function loadGalleryFromStorage(): NamedChimera[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (c): c is NamedChimera =>
-        c && typeof c.id === 'string' && typeof c.name === 'string' && Array.isArray(c.icons) && typeof c.createdAt === 'number'
-    );
+    return parsed
+      .filter(
+        (c): c is Omit<NamedChimera, 'partIds' | 'permanentCapacityBonus'> & { partIds?: unknown; permanentCapacityBonus?: unknown } =>
+          c && typeof c.id === 'string' && typeof c.name === 'string' && Array.isArray(c.icons) && typeof c.createdAt === 'number'
+      )
+      .map((c) => ({
+        ...c,
+        partIds: Array.isArray(c.partIds) ? (c.partIds as string[]) : [],
+        permanentCapacityBonus: typeof c.permanentCapacityBonus === 'number' ? c.permanentCapacityBonus : 0,
+      }));
   } catch {
     return [];
   }

@@ -37,6 +37,23 @@ function scorePart(def: PartDef, hpRatio: number): number {
     if (e.kind === 'battle_start_defense') score += e.amount * 0.5;
     if (e.kind === 'revive_once') score += 5;
     if (e.kind === 'crit_multiplier_bonus') score += e.amount * 4;
+    if (e.kind === 'fixed_damage_tick') score += (e.amount / Math.max(0.5, def.interval || 1)) * 1.2;
+    if (e.kind === 'fixed_damage_growth_per_proc') score += e.amount * 3;
+    if (e.kind === 'duplicate_stack_pct') score += e.pctPerExtra * 0.6;
+    if (e.kind === 'empty_capacity_damage_bonus') score += e.pctPerUnused * 0.8;
+    if (e.kind === 'extra_drop_candidates') score += e.amount * 4;
+    if (e.kind === 'double_activation_chance_all') score += e.chance * 30;
+    if (e.kind === 'heart_count_bonus') score += e.hpPerHeart * 0.3 + e.attackPctPerHeart * 0.6;
+    // 以下は元々ドロップ不能だった特殊部位が今回のバグ修正で出現するようになったため、
+    // ボットが誤って過大/過小評価しないよう最低限のスコアを補う
+    if (e.kind === 'attack_speed_all') score += e.pct * 0.6; // 全部位攻撃速度: 負ならペナルティとして反映
+    if (e.kind === 'capacity_bonus_on_win') score += e.amount * 1.0;
+    if (e.kind === 'poison_no_decay_chance') score += e.chance * 3;
+    if (e.kind === 'cost_modifier') {
+      if (e.targetType === 'all_except') score -= e.delta * 1;
+      else score += -e.delta * 2;
+    }
+    if (e.kind === 'attack_speed_per_count') score += e.pctEach * 0.5;
   }
   if (def.rarity === 'uncommon') score *= 1.1;
   if (def.rarity === 'rare') score *= 1.25;
@@ -116,7 +133,8 @@ function simulateOneRun(runId: number, verbose: boolean) {
     state = enterBattle(state);
     const enemy = state.currentEnemy!;
     const equipped = state.equipped.map((i) => ({ instanceId: i.instanceId, def: getPartDef(i.defId) }));
-    const setup: PlayerBattleSetup = { equipped, coreHpBase: CORE_HP_BASE, currentHp: state.coreHp, baseDefense: BASE_DEFENSE };
+    const freeCapacity = getCapacityInfo(state).free;
+    const setup: PlayerBattleSetup = { equipped, coreHpBase: CORE_HP_BASE, currentHp: state.coreHp, baseDefense: BASE_DEFENSE, freeCapacity };
     const engine = new BattleEngine(setup, enemy, state.battleIndex, { verbose: false });
     let simTime = 0;
     const dt = 0.1;

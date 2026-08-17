@@ -69,7 +69,22 @@ export type PartEffect =
   | { kind: 'poison_no_decay_chance'; chance: number }
   | { kind: 'on_poison_apply_gain_defense'; amount: number }
   | { kind: 'revive_once'; hpPct: number }
-  | { kind: 'crit_multiplier_bonus'; amount: number };
+  | { kind: 'crit_multiplier_bonus'; amount: number }
+  // --- 第1回アップデートで追加した特殊能力用 ---
+  // 固定ダメージ（防御・被ダメージ軽減を無視する別ダメージ種）を自分のタイマーで敵に発生させる（千本骨）
+  | { kind: 'fixed_damage_tick'; amount: number }
+  // 固定ダメージが発生するたび、その戦闘中だけ固定ダメージ量が成長する（穿孔心臓）
+  | { kind: 'fixed_damage_growth_per_proc'; amount: number }
+  // 同名の部位を複数装着すると、その部位の攻撃力が重複数に応じて上昇する（群体意識）
+  | { kind: 'duplicate_stack_pct'; pctPerExtra: number }
+  // 未使用の接続容量1につき、最終ダメージが上昇する（空洞核）
+  | { kind: 'empty_capacity_damage_bonus'; pctPerUnused: number }
+  // 戦闘後のドロップ候補数を増やす（完全捕食）
+  | { kind: 'extra_drop_candidates'; amount: number }
+  // 全ての部位種類について、能力発動時に低確率でもう一度発動する（暴走遺伝子）
+  | { kind: 'double_activation_chance_all'; chance: number }
+  // 心臓・臓器の装着数に応じて最大HPと攻撃力が上昇する（巨大心臓）
+  | { kind: 'heart_count_bonus'; hpPerHeart: number; attackPctPerHeart: number };
 
 export interface PartDef {
   id: string;

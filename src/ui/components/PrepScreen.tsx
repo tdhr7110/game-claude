@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../GameContext';
-import { equippedDefs, getCapacityInfo, getMaxHp, tierOfCurrentBattle, BATTLE_SEQUENCE, TOTAL_BATTLES } from '../../engine/run';
+import { equippedDefs, getCapacityInfo, getMaxHp, battleSlotLabel, battleSlotLabelForIndex, BATTLE_SEQUENCE, TOTAL_BATTLES } from '../../engine/run';
 import { getPartDef } from '../../data/parts';
 import { computeActiveSynergies } from '../../engine/synergyEngine';
 import { computeModifiers } from '../../engine/modifiers';
@@ -12,8 +12,6 @@ import { SynergyPanel } from './SynergyPanel';
 import { ChimeraAvatar } from './ChimeraAvatar';
 import { ChimeraGalleryModal } from './ChimeraGalleryModal';
 
-const SLOT_LABEL: Record<string, string> = { normal: '通常戦', elite: '強敵戦', miniboss: '中ボス戦', boss: '最終ボス戦' };
-
 export function PrepScreen() {
   const { state, dispatch, equipError, setEquipError, setShowIntro, chimeraGallery } = useGame();
   const [selectedDefId, setSelectedDefId] = useState<string | null>(null);
@@ -24,7 +22,7 @@ export function PrepScreen() {
   const synergies = useMemo(() => computeActiveSynergies(eqDefs), [eqDefs]);
   const critChancePct = useMemo(() => Math.round(computeModifiers(eqDefs, synergies).critChance * 100), [eqDefs, synergies]);
   const maxHp = getMaxHp(state);
-  const slot = tierOfCurrentBattle(state);
+  const slotLabel = battleSlotLabel(state);
 
   const selectedDef = selectedDefId ? getPartDef(selectedDefId) : null;
   const selectedEquippedInstance = state.equipped.find((i) => i.defId === selectedDefId);
@@ -46,7 +44,7 @@ export function PrepScreen() {
   return (
     <div className="screen prep-screen">
       <header className="screen__header">
-        <h1>🧬 戦闘準備 — 第{state.battleIndex}戦 / 全{TOTAL_BATTLES}戦（{SLOT_LABEL[slot]}）</h1>
+        <h1>🧬 戦闘準備 — 第{state.battleIndex}戦 / 全{TOTAL_BATTLES}戦（{slotLabel}）</h1>
         <div className="header-right">
           <div className="hp-readout" title="コアHPが0になると敗北です。勝利するまで戦闘間で持ち越されます">
             ❤️ コアHP {state.coreHp} / {maxHp}
@@ -128,7 +126,7 @@ export function PrepScreen() {
 
       <footer className="screen__footer">
         <div className="muted">
-          戦闘予定: {BATTLE_SEQUENCE.map((s, i) => (i + 1 === state.battleIndex ? `【${SLOT_LABEL[s]}】` : '・')).join('')}
+          戦闘予定: {BATTLE_SEQUENCE.map((_s, i) => (i + 1 === state.battleIndex ? `【${battleSlotLabelForIndex(i + 1)}】` : '・')).join('')}
         </div>
         <button className="btn btn--primary btn--large" onClick={() => dispatch({ type: 'ENTER_BATTLE' })}>
           ⚔️ 次の戦闘を開始する
