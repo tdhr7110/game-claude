@@ -30,6 +30,13 @@ export interface CombatantModifiers {
   auraOnHitByType: Partial<Record<PartType, OnHitEffect[]>>;
   critChance: number;
   critMultiplier: number;
+  // --- 第1回アップデート追加分 ---
+  fixedDamageGrowthPerProc: number; // 穿孔心臓
+  duplicateStackPctPerExtra: number; // 群体意識
+  emptyCapacityDamageBonusPct: number; // 空洞核（実際の倍率化はbattle.ts側でfreeCapacityと掛け合わせる）
+  heartCountHpPerHeart: number; // 巨大心臓
+  heartCountAttackPctPerHeart: number; // 巨大心臓
+  finalDamageMult: number; // 空洞核など、最終ダメージに直接かかる倍率（戦闘開始時に確定する）
 }
 
 export function emptyModifiers(): CombatantModifiers {
@@ -54,6 +61,12 @@ export function emptyModifiers(): CombatantModifiers {
     auraOnHitByType: {},
     critChance: 0,
     critMultiplier: BASE_CRIT_MULTIPLIER,
+    fixedDamageGrowthPerProc: 0,
+    duplicateStackPctPerExtra: 0,
+    emptyCapacityDamageBonusPct: 0,
+    heartCountHpPerHeart: 0,
+    heartCountAttackPctPerHeart: 0,
+    finalDamageMult: 1,
   };
 }
 
@@ -103,6 +116,19 @@ function applyStatic(mods: CombatantModifiers, kind: string, e: any) {
       break;
     case 'crit_multiplier_bonus':
       mods.critMultiplier += e.amount;
+      break;
+    case 'fixed_damage_growth_per_proc':
+      mods.fixedDamageGrowthPerProc += e.amount;
+      break;
+    case 'duplicate_stack_pct':
+      mods.duplicateStackPctPerExtra += e.pctPerExtra;
+      break;
+    case 'empty_capacity_damage_bonus':
+      mods.emptyCapacityDamageBonusPct += e.pctPerUnused;
+      break;
+    case 'heart_count_bonus':
+      mods.heartCountHpPerHeart += e.hpPerHeart;
+      mods.heartCountAttackPctPerHeart += e.attackPctPerHeart;
       break;
     case 'type_double_activation_chance':
       mods.typeDoubleActivationChance[e.targetType as PartType] = Math.max(
@@ -161,6 +187,17 @@ export function computeModifiers(equippedDefs: PartDef[], synergies: ActiveSyner
         mods.attackSpeedGlobalPct += times * e.pctEach;
         continue;
       }
+      if (e.kind === 'double_activation_chance_all') {
+        for (const t of ['arm', 'head', 'heart', 'leg', 'skin'] as PartType[]) {
+          mods.typeDoubleActivationChance[t] = Math.max(mods.typeDoubleActivationChance[t] ?? 0, e.chance);
+        }
+        continue;
+      }
+      if (e.kind === 'fixed_damage_tick' || e.kind === 'extra_drop_candidates') {
+        // fixed_damage_tick はパーツ自身のタイマーで戦闘エンジンが直接処理し、
+        // extra_drop_candidates はラン進行側(run.ts)で処理するため、ここではスキップ
+        continue;
+      }
       // apply_poison / apply_burn / heal_tick / capacity_bonus / capacity_bonus_on_win / cost_modifier / lifesteal は
       // それぞれ攻撃解決時・容量計算時に別処理されるためここではスキップ
       applyStatic(mods, e.kind, e);
@@ -185,4 +222,32 @@ export function effectiveInterval(baseInterval: number, type: PartType, mods: Co
   const pct = mods.attackSpeedGlobalPct + mods.attackSpeedTypePct[type];
   const mult = Math.max(0.2, 1 + pct / 100);
   return baseInterval / mult;
+}
+
+// 装着部位のhpBonus合計 + 巨大心臓等の「心臓・臓器の装着数に応じたHP加算」をまとめて計算する。
+// 戦闘準備画面(run.ts)と戦闘エンジン(battle.ts)の両方で同じ計算式を使うための共有ヘルパー。
+export function computeBonusHp(equippedDefs: PartDef[]): number {
+  const base = equippedDefs.reduce((sum, d) => sum + d.hpBonus, 0);
+  const heartCount = equippedDefs.filter((p) => p.type === 'heart').length;
+  let heartHpPerHeart = 0;
+  for (const def of equippedDefs) {
+    for (const e of def.effects as PartEffect[]) {
+      if (e.kind === 'heart_count_bonus') heartHpPerHeart += e.hpPerHeart;
+    }
+  }
+  return base + heartHpPerHeart * heartCount;
+}
+
+// 特定の部位1個あたりの実効攻撃力倍率（群体意識の同名スタック、巨大心臓の心臓数ボーナスを合成）
+export function computePerInstanceAttackMultiplier(def: PartDef, equippedDefs: PartDef[], mods: CombatantModifiers): number {
+  let mult = 1;
+  if (mods.duplicateStackPctPerExtra > 0) {
+    const dupCount = equippedDefs.filter((d) => d.id === def.id).length;
+    if (dupCount > 1) mult *= 1 + (mods.duplicateStackPctPerExtra / 100) * (dupCount - 1);
+  }
+  if (mods.heartCountAttackPctPerHeart > 0) {
+    const heartCount = equippedDefs.filter((d) => d.type === 'heart').length;
+    if (heartCount > 0) mult *= 1 + (mods.heartCountAttackPctPerHeart / 100) * heartCount;
+  }
+  return mult;
 }

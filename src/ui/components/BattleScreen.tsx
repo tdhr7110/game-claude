@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../GameContext';
 import { BattleEngine, type BattleSnapshot, type CombatantSnapshot, type SpeedSetting } from '../../engine/battle';
 import { getPartDef } from '../../data/parts';
-import { CORE_HP_BASE, BASE_DEFENSE } from '../../engine/run';
+import { CORE_HP_BASE, BASE_DEFENSE, getCapacityInfo, TOTAL_BATTLES } from '../../engine/run';
 import { ChimeraAvatar } from './ChimeraAvatar';
 import type { PartDef } from '../../data/types';
 
@@ -79,8 +79,9 @@ export function BattleScreen() {
   useEffect(() => {
     if (!state.currentEnemy) return;
     const equipped = state.equipped.map((i) => ({ instanceId: i.instanceId, def: getPartDef(i.defId) }));
+    const freeCapacity = getCapacityInfo(state).free;
     const engine = new BattleEngine(
-      { equipped, coreHpBase: CORE_HP_BASE, currentHp: state.coreHp, baseDefense: BASE_DEFENSE },
+      { equipped, coreHpBase: CORE_HP_BASE, currentHp: state.coreHp, baseDefense: BASE_DEFENSE, freeCapacity },
       state.currentEnemy,
       state.battleIndex,
       { verbose: state.verboseLog }
@@ -122,7 +123,7 @@ export function BattleScreen() {
   return (
     <div className="screen battle-screen">
       <header className="screen__header">
-        <h1>⚔️ 第{snapshot.battleIndex}戦 / 全8戦</h1>
+        <h1>⚔️ 第{snapshot.battleIndex}戦 / 全{TOTAL_BATTLES}戦</h1>
         <div className="muted">経過時間 {snapshot.time.toFixed(1)}秒</div>
       </header>
 

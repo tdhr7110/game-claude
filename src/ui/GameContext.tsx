@@ -22,7 +22,8 @@ export interface NamedChimera {
   name: string;
   outcome: 'victory' | 'defeat';
   battleReached: number;
-  icons: string[]; // 命名時点で装着していた部位アイコンのスナップショット
+  icons: string[]; // 命名時点で装着していた部位アイコンのスナップショット（表示用）
+  partIds: string[]; // 命名時点で装着していた部位のID（図鑑の詳細表示で参照する）
   createdAt: number;
 }
 
@@ -36,10 +37,12 @@ function loadGalleryFromStorage(): NamedChimera[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (c): c is NamedChimera =>
-        c && typeof c.id === 'string' && typeof c.name === 'string' && Array.isArray(c.icons) && typeof c.createdAt === 'number'
-    );
+    return parsed
+      .filter(
+        (c): c is Omit<NamedChimera, 'partIds'> & { partIds?: unknown } =>
+          c && typeof c.id === 'string' && typeof c.name === 'string' && Array.isArray(c.icons) && typeof c.createdAt === 'number'
+      )
+      .map((c) => ({ ...c, partIds: Array.isArray(c.partIds) ? (c.partIds as string[]) : [] }));
   } catch {
     return [];
   }

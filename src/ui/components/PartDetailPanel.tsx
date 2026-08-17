@@ -1,5 +1,6 @@
 import type { PartDef } from '../../data/types';
 import { RARITY_COLORS, SPECIES_ICONS, rarityLabel, speciesLabel, tagLabel, typeLabel } from '../format';
+import { PART_TYPE_SYNERGIES, SPECIES_SYNERGIES } from '../../data/synergies';
 
 interface PartDetailPanelProps {
   def: PartDef;
@@ -56,6 +57,20 @@ export function PartDetailPanel({ def, cost, compareWith }: PartDetailPanelProps
           ))}
         </div>
       )}
+      <div className="detail-panel__synergy">
+        <div className="muted">🔗 シナジー</div>
+        {PART_TYPE_SYNERGIES[def.type].map((tier) => (
+          <div key={`type-${tier.count}`} className="detail-panel__synergy-row">
+            【{typeLabel(def.type)}】{tier.count}個: {tier.description}
+          </div>
+        ))}
+        {def.species !== 'none' &&
+          SPECIES_SYNERGIES[def.species].map((tier) => (
+            <div key={`species-${tier.count}`} className="detail-panel__synergy-row">
+              【{speciesLabel(def.species)}】{tier.count}部位: {tier.description}
+            </div>
+          ))}
+      </div>
       {compareWith && compareWith.length > 0 && (
         <div className="detail-panel__compare">
           <div className="muted">現在装着中の同種部位と比較:</div>

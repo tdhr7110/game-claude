@@ -1,6 +1,14 @@
 import type { EnemyDef, EnemyMove, PartDef, PartType } from '../data/types';
 import { computeActiveSynergies, type ActiveSynergies } from './synergyEngine';
-import { computeModifiers, effectiveInterval, emptyModifiers, type CombatantModifiers, type OnHitEffect } from './modifiers';
+import {
+  computeBonusHp,
+  computeModifiers,
+  computePerInstanceAttackMultiplier,
+  effectiveInterval,
+  emptyModifiers,
+  type CombatantModifiers,
+  type OnHitEffect,
+} from './modifiers';
 
 export type SpeedSetting = 0 | 1 | 2 | 4;
 export type BattleStatus = 'ongoing' | 'won' | 'lost';
@@ -47,6 +55,7 @@ interface Combatant {
   reviveUsed: boolean;
   isDead: boolean;
   stats: { damageDealt: number; healed: number; critCount: number };
+  fixedDamageBonus: number; // 穿孔心臓等により戦闘中に成長する固定ダメージ加算値
 }
 
 export interface PartSnapshot {
@@ -93,6 +102,7 @@ export interface PlayerBattleSetup {
   coreHpBase: number;
   currentHp: number; // 前戦闘からの持ち越しHP
   baseDefense: number;
+  freeCapacity: number; // 空洞核（未使用接続容量ボーナス）用。戦闘準備画面時点の空き容量
 }
 
 let logSeq = 0;
@@ -117,13 +127,20 @@ export class BattleEngine {
     const equippedDefs = setup.equipped.map((e) => e.def);
     this.synergies = computeActiveSynergies(equippedDefs);
     const playerMods = computeModifiers(equippedDefs, this.synergies);
+    if (playerMods.emptyCapacityDamageBonusPct > 0) {
+      playerMods.finalDamageMult *= 1 + (playerMods.emptyCapacityDamageBonusPct / 100) * Math.max(0, setup.freeCapacity);
+    }
 
-    const hpBonusTotal = equippedDefs.reduce((sum, d) => sum + d.hpBonus, 0);
+    const hpBonusTotal = computeBonusHp(equippedDefs);
     const maxHp = Math.max(1, setup.coreHpBase + hpBonusTotal);
 
     const playerParts: RuntimePart[] = setup.equipped
       .filter((e) => e.def.interval > 0)
-      .map((e) => this.makeRuntimePart(e.instanceId, e.def.name, e.def.type, e.def.attack, e.def.interval, e.def.effects, e.def.icon, playerMods));
+      .map((e) => {
+        const attackMult = computePerInstanceAttackMultiplier(e.def, equippedDefs, playerMods);
+        const attack = attackMult !== 1 ? Math.round(e.def.attack * attackMult * 10) / 10 : e.def.attack;
+        return this.makeRuntimePart(e.instanceId, e.def.name, e.def.type, attack, e.def.interval, e.def.effects, e.def.icon, playerMods);
+      });
 
     this.player = {
       side: 'player',
@@ -141,6 +158,7 @@ export class BattleEngine {
       reviveUsed: false,
       isDead: false,
       stats: { damageDealt: 0, healed: 0, critCount: 0 },
+      fixedDamageBonus: 0,
     };
 
     const enemyMods: CombatantModifiers = emptyModifiers();
@@ -164,6 +182,7 @@ export class BattleEngine {
       reviveUsed: false,
       isDead: false,
       stats: { damageDealt: 0, healed: 0, critCount: 0 },
+      fixedDamageBonus: 0,
     };
 
     this.pushLog(`戦闘開始: ${enemyDef.name} が現れた！`);
@@ -263,6 +282,7 @@ export class BattleEngine {
     }
     const isCrit = attacker.mods.critChance > 0 && Math.random() < attacker.mods.critChance;
     if (isCrit) rawDamage *= attacker.mods.critMultiplier;
+    if (attacker.mods.finalDamageMult !== 1) rawDamage *= attacker.mods.finalDamageMult;
     const finalDamage = this.applyDefenseAndReduction(rawDamage, defender);
     const applied = this.dealDamage(defender, finalDamage);
     attacker.stats.damageDealt += applied;
@@ -347,6 +367,32 @@ export class BattleEngine {
     }
   }
 
+  // パッシブ部位の効果を1回分適用する（heal_tick / fixed_damage_tick）。
+  // 通常発動と「頭・口・目5個シナジー」等による連続発動の両方から呼ばれる共通処理。
+  private applyPassiveEffectsOnce(attacker: Combatant, defender: Combatant, part: RuntimePart) {
+    for (const e of part.effects) {
+      if (e.kind === 'heal_tick') {
+        const base = e.isPercent ? attacker.maxHp * (e.amount / 100) : e.amount;
+        const amount = Math.round(base * attacker.mods.healMultiplier);
+        const before = attacker.hp;
+        attacker.hp = Math.min(attacker.maxHp, attacker.hp + amount);
+        const healed = attacker.hp - before;
+        attacker.stats.healed += healed;
+        if (healed > 0) this.pushLog(`💚 ${attacker.name}の${part.icon}${part.name}がHP${healed}回復`);
+      } else if (e.kind === 'fixed_damage_tick') {
+        if (defender.isDead) continue;
+        // 固定ダメージ: 防御・被ダメージ軽減を無視する別ダメージ種
+        const amount = e.amount + attacker.fixedDamageBonus;
+        const applied = this.dealDamage(defender, amount);
+        attacker.stats.damageDealt += applied;
+        this.pushLog(`🦴 ${attacker.name}の${part.icon}${part.name}が${defender.name}に固定${applied}ダメージ`);
+        if (attacker.mods.fixedDamageGrowthPerProc > 0) {
+          attacker.fixedDamageBonus += attacker.mods.fixedDamageGrowthPerProc;
+        }
+      }
+    }
+  }
+
   private activatePart(attacker: Combatant, defender: Combatant, part: RuntimePart) {
     part.activations += 1;
 
@@ -359,29 +405,11 @@ export class BattleEngine {
         this.resolveAttack(attacker, defender, part, false);
       }
     } else {
-      // パッシブ発動（回復など）
-      for (const e of part.effects) {
-        if (e.kind === 'heal_tick') {
-          const base = e.isPercent ? attacker.maxHp * (e.amount / 100) : e.amount;
-          const amount = Math.round(base * attacker.mods.healMultiplier);
-          const before = attacker.hp;
-          attacker.hp = Math.min(attacker.maxHp, attacker.hp + amount);
-          const healed = attacker.hp - before;
-          attacker.stats.healed += healed;
-          if (healed > 0) this.pushLog(`💚 ${attacker.name}の${part.icon}${part.name}がHP${healed}回復`);
-        }
-      }
+      // パッシブ発動（回復・固定ダメージなど）
+      this.applyPassiveEffectsOnce(attacker, defender, part);
       const doubleChance = attacker.mods.typeDoubleActivationChance[part.type];
-      if (doubleChance && Math.random() < doubleChance) {
-        for (const e of part.effects) {
-          if (e.kind === 'heal_tick') {
-            const base = e.isPercent ? attacker.maxHp * (e.amount / 100) : e.amount;
-            const amount = Math.round(base * attacker.mods.healMultiplier);
-            const before = attacker.hp;
-            attacker.hp = Math.min(attacker.maxHp, attacker.hp + amount);
-            attacker.stats.healed += attacker.hp - before;
-          }
-        }
+      if (doubleChance && !attacker.isDead && !defender.isDead && Math.random() < doubleChance) {
+        this.applyPassiveEffectsOnce(attacker, defender, part);
       }
     }
   }

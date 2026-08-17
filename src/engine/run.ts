@@ -1,13 +1,18 @@
 import type { EnemyDef, EnemyTier, PartDef, PartInstance, Rarity } from '../data/types';
-import { ALL_PARTS, getPartDef, PARTS_BY_SPECIES, WEAK_ARM } from '../data/parts';
-import { buildFinalBoss, buildMiniboss, pickEliteEnemy, pickNormalEnemy, scaleEnemy } from '../data/enemies';
+import { DROPPABLE_PARTS, getPartDef, PARTS_BY_SPECIES, SPECIAL_PART_DEFS, WEAK_ARM } from '../data/parts';
+import { buildDeepFinalBoss, buildFinalBoss, buildMiniboss, pickEliteEnemy, pickNormalEnemy, scaleEnemy, TIER1_BATTLE_COUNT } from '../data/enemies';
 import { computeCapacity, previewCostForNewPart, type CapacityInfo } from './capacity';
+import { computeBonusHp } from './modifiers';
 
 export type GamePhase = 'prep' | 'battle' | 'drop' | 'result';
 export type BattleSlotType = 'normal' | 'elite' | 'miniboss' | 'boss';
 
-export const BATTLE_SEQUENCE: BattleSlotType[] = ['normal', 'normal', 'elite', 'normal', 'miniboss', 'normal', 'elite', 'boss'];
+// 第1階層(1-8戦)と同じ配置パターンを第2階層(9-16戦)にも繰り返す。
+// 8戦目の'boss'は第1階層ボス(中間ボス)、16戦目の'boss'が真の最終ボスとして扱われる（pickEnemyForSlot参照）。
+const TIER_PATTERN: BattleSlotType[] = ['normal', 'normal', 'elite', 'normal', 'miniboss', 'normal', 'elite', 'boss'];
+export const BATTLE_SEQUENCE: BattleSlotType[] = [...TIER_PATTERN, ...TIER_PATTERN];
 export const TOTAL_BATTLES = BATTLE_SEQUENCE.length;
+export { TIER1_BATTLE_COUNT };
 
 export const CORE_HP_BASE = 100;
 export const BASE_CAPACITY = 12;
@@ -66,7 +71,7 @@ export function equippedDefs(state: RunState): PartDef[] {
 }
 
 export function getMaxHp(state: RunState): number {
-  const bonus = equippedDefs(state).reduce((sum, d) => sum + d.hpBonus, 0);
+  const bonus = computeBonusHp(equippedDefs(state));
   return Math.max(1, CORE_HP_BASE + bonus);
 }
 
@@ -102,7 +107,7 @@ export function unequipPart(state: RunState, instanceId: string): RunState {
   const item = state.equipped.find((i) => i.instanceId === instanceId);
   if (!item) return state;
   const newEquipped = state.equipped.filter((i) => i.instanceId !== instanceId);
-  const newMaxHp = Math.max(1, CORE_HP_BASE + newEquipped.reduce((s, i) => s + getPartDef(i.defId).hpBonus, 0));
+  const newMaxHp = Math.max(1, CORE_HP_BASE + computeBonusHp(newEquipped.map((i) => getPartDef(i.defId))));
   return {
     ...state,
     equipped: newEquipped,
@@ -116,10 +121,12 @@ export function unequipPart(state: RunState, instanceId: string): RunState {
 function pickEnemyForSlot(state: RunState): { enemy: EnemyDef; state: RunState } {
   const slot = BATTLE_SEQUENCE[state.battleIndex - 1];
   if (slot === 'boss') {
-    return { enemy: buildFinalBoss(), state };
+    // 8戦目は第1階層ボス（中間ボス）、16戦目(最終戦)は覚醒した真の最終ボス
+    const enemy = state.battleIndex >= TOTAL_BATTLES ? buildDeepFinalBoss() : buildFinalBoss();
+    return { enemy, state };
   }
   if (slot === 'miniboss') {
-    const enemy = buildMiniboss(state.usedEliteIds);
+    const enemy = buildMiniboss(state.usedEliteIds, state.battleIndex);
     return { enemy, state };
   }
   if (slot === 'elite') {
@@ -141,6 +148,28 @@ export function tierOfCurrentBattle(state: RunState): BattleSlotType {
   return BATTLE_SEQUENCE[state.battleIndex - 1];
 }
 
+// 'boss'スロットのうち、8戦目は第1階層ボス(中間ボス)、16戦目のみ真の最終ボスとして扱う。
+export function isFinalBossBattle(battleIndex: number): boolean {
+  return battleIndex >= TOTAL_BATTLES;
+}
+
+export function isDeepTierBattle(battleIndex: number): boolean {
+  return battleIndex > TIER1_BATTLE_COUNT;
+}
+
+// UI表示用の戦闘種別ラベル（8戦目=中間ボス戦、16戦目=最終ボス戦、を区別する）
+export function battleSlotLabelForIndex(battleIndex: number): string {
+  const slot = BATTLE_SEQUENCE[battleIndex - 1];
+  if (slot === 'boss') return isFinalBossBattle(battleIndex) ? '最終ボス戦' : '中間ボス戦';
+  if (slot === 'miniboss') return '中ボス戦';
+  if (slot === 'elite') return '強敵戦';
+  return '通常戦';
+}
+
+export function battleSlotLabel(state: RunState): string {
+  return battleSlotLabelForIndex(state.battleIndex);
+}
+
 // --- ドロップ ---
 
 const RARITY_WEIGHTS: Record<EnemyTier, Record<Rarity, number>> = {
@@ -148,6 +177,14 @@ const RARITY_WEIGHTS: Record<EnemyTier, Record<Rarity, number>> = {
   elite: { common: 45, uncommon: 38, rare: 17 },
   miniboss: { common: 25, uncommon: 42, rare: 33 },
   boss: { common: 10, uncommon: 30, rare: 60 },
+};
+
+// 第2階層(9戦目以降)のドロップ抽選テーブル。コモンは下がり、アンコモン・レアは明確に上昇する。
+const RARITY_WEIGHTS_DEEP: Record<EnemyTier, Record<Rarity, number>> = {
+  normal: { common: 45, uncommon: 35, rare: 20 },
+  elite: { common: 25, uncommon: 40, rare: 35 },
+  miniboss: { common: 12, uncommon: 38, rare: 50 },
+  boss: { common: 5, uncommon: 20, rare: 75 },
 };
 
 function weightedSampleWithoutReplacement(pool: PartDef[], weights: Record<Rarity, number>, count: number): PartDef[] {
@@ -170,14 +207,16 @@ function weightedSampleWithoutReplacement(pool: PartDef[], weights: Record<Rarit
   return result;
 }
 
-export function generateDropCandidates(enemy: EnemyDef, count = 3): PartDef[] {
+export function generateDropCandidates(enemy: EnemyDef, count = 3, isDeepTier = false): PartDef[] {
+  const weights = (isDeepTier ? RARITY_WEIGHTS_DEEP : RARITY_WEIGHTS)[enemy.tier];
   const species = enemy.species === 'chimera' ? null : enemy.species;
   if (!species || species === 'none') {
-    // 最終ボス等、種族プールが無い場合は全種族から抽選
-    return weightedSampleWithoutReplacement(ALL_PARTS.filter((p) => p.species !== 'none'), RARITY_WEIGHTS[enemy.tier], count);
+    // 最終ボス等、種族プールが無い場合は全部位(特殊部位含む)から抽選
+    return weightedSampleWithoutReplacement(DROPPABLE_PARTS, weights, count);
   }
-  const pool = PARTS_BY_SPECIES[species];
-  return weightedSampleWithoutReplacement(pool, RARITY_WEIGHTS[enemy.tier], Math.min(count, pool.length));
+  // 種族プール + 特殊部位（無属性のため、どの種族の敵からでもドロップし得る）
+  const pool = [...PARTS_BY_SPECIES[species], ...SPECIAL_PART_DEFS];
+  return weightedSampleWithoutReplacement(pool, weights, Math.min(count, pool.length));
 }
 
 // --- 戦闘後処理 ---
@@ -187,10 +226,14 @@ export function finishBattle(state: RunState, result: 'won' | 'lost', finalPlaye
     return { ...state, coreHp: 0, phase: 'result', resultOutcome: 'defeat' };
   }
 
+  const deepTier = isDeepTierBattle(state.battleIndex);
+  const deepWinMult = deepTier ? 2 : 1; // 無限肉芽・増殖細胞は深層で効果2倍
   let capacityGain = 0;
+  let extraDropCount = 0;
   for (const def of equippedDefs(state)) {
     for (const e of def.effects) {
-      if (e.kind === 'capacity_bonus_on_win') capacityGain += e.amount;
+      if (e.kind === 'capacity_bonus_on_win') capacityGain += e.amount * deepWinMult;
+      if (e.kind === 'extra_drop_candidates') extraDropCount += e.amount;
     }
   }
 
@@ -208,7 +251,7 @@ export function finishBattle(state: RunState, result: 'won' | 'lost', finalPlaye
   }
 
   const enemy = state.currentEnemy;
-  const candidates = enemy ? generateDropCandidates(enemy) : [];
+  const candidates = enemy ? generateDropCandidates(enemy, 3 + extraDropCount, deepTier) : [];
   return { ...afterWin, phase: 'drop', dropCandidates: candidates };
 }
 

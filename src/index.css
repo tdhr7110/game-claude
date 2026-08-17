@@ -331,6 +331,18 @@ h3 {
   justify-content: space-between;
   padding: 2px 0;
 }
+.detail-panel__synergy {
+  margin-top: 10px;
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+  font-size: 0.8em;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.detail-panel__synergy-row {
+  color: var(--text-muted);
+}
 
 /* --- Synergy Panel --- */
 .synergy-panel__title {
@@ -480,6 +492,22 @@ h3 {
   font-size: 1.1em;
   line-height: 1.1;
 }
+.gallery-entry__icon-btn {
+  font-size: 1.1em;
+  line-height: 1.1;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 1px 2px;
+  cursor: pointer;
+}
+.gallery-entry__icon-btn:hover {
+  background: rgba(168, 85, 247, 0.15);
+}
+.gallery-entry__icon-btn--selected {
+  border-color: var(--accent);
+  background: rgba(168, 85, 247, 0.25);
+}
 .gallery-entry__info {
   flex: 1;
   min-width: 0;
@@ -489,6 +517,11 @@ h3 {
 }
 .gallery-entry__sub {
   font-size: 0.8em;
+}
+.gallery-detail {
+  margin: 10px 0;
+  max-height: 40vh;
+  overflow-y: auto;
 }
 
 .combatant-panel {

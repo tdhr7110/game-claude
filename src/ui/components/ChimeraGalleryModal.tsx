@@ -1,4 +1,7 @@
+import { useState } from 'react';
 import { useGame } from '../GameContext';
+import { getPartDef } from '../../data/parts';
+import { PartDetailPanel } from './PartDetailPanel';
 
 interface ChimeraGalleryModalProps {
   onClose: () => void;
@@ -6,6 +9,8 @@ interface ChimeraGalleryModalProps {
 
 export function ChimeraGalleryModal({ onClose }: ChimeraGalleryModalProps) {
   const { chimeraGallery } = useGame();
+  const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
+  const selectedDef = selectedPartId ? getPartDef(selectedPartId) : null;
 
   return (
     <div className="intro-overlay" onClick={onClose}>
@@ -20,7 +25,20 @@ export function ChimeraGalleryModal({ onClose }: ChimeraGalleryModalProps) {
             {chimeraGallery.map((c) => (
               <div key={c.id} className="gallery-entry">
                 <div className="gallery-entry__icons">
-                  {c.icons.length > 0 ? (
+                  {c.partIds.length > 0 ? (
+                    c.partIds.slice(0, 12).map((partId, i) => (
+                      <button
+                        key={`${partId}-${i}`}
+                        type="button"
+                        className={`gallery-entry__icon-btn${selectedPartId === partId ? ' gallery-entry__icon-btn--selected' : ''}`}
+                        title={`${getPartDef(partId).name}の詳細を見る`}
+                        onClick={() => setSelectedPartId(partId)}
+                      >
+                        {c.icons[i] ?? getPartDef(partId).icon}
+                      </button>
+                    ))
+                  ) : c.icons.length > 0 ? (
+                    // 旧バージョンで記録された図鑑データ（partIdsを持たない）は詳細を見られない
                     c.icons.slice(0, 12).map((icon, i) => (
                       <span key={i} className="gallery-entry__icon">
                         {icon}
@@ -40,6 +58,11 @@ export function ChimeraGalleryModal({ onClose }: ChimeraGalleryModalProps) {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+        {selectedDef && (
+          <div className="gallery-detail">
+            <PartDetailPanel def={selectedDef} />
           </div>
         )}
         <button className="btn btn--primary btn--large" onClick={onClose}>
