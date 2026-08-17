@@ -1081,3 +1081,290 @@ body.debug-open {
     flex-basis: 100%;
   }
 }
+
+/* ============================================================
+   BALANCE管理画面（テスト版限定）
+   既存のトークン(--bg-panel等)・クラス(.btn/.chip/.error-banner等)を極力再利用する。
+   ============================================================ */
+.admin-screen {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.admin-screen__hint {
+  margin: 4px 0 12px;
+}
+.admin-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+.admin-tab-body h2 {
+  margin-top: 18px;
+}
+
+.admin-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.admin-filters input,
+.admin-filters select {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: var(--text);
+}
+
+.admin-parts-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.admin-parts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 75vh;
+  overflow-y: auto;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+}
+.admin-part-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 8px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 0.85em;
+}
+.admin-part-row:hover {
+  background: rgba(168, 85, 247, 0.1);
+}
+.admin-part-row--selected {
+  border-color: var(--accent);
+  background: rgba(168, 85, 247, 0.2);
+}
+.admin-part-row__name {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.admin-part-form {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.85em;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+}
+.admin-field input,
+.admin-field select,
+.admin-field textarea {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: var(--text);
+  font-size: 1em;
+}
+.admin-field--checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.admin-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.admin-diff {
+  background: rgba(250, 204, 21, 0.08);
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 8px 0;
+  font-size: 0.85em;
+}
+.admin-diff-before {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+.admin-diff-after {
+  color: var(--success);
+  font-weight: bold;
+}
+
+.admin-effects-editor {
+  border-top: 1px dashed var(--border);
+  padding-top: 10px;
+  margin-top: 10px;
+}
+.admin-effect-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-panel-2);
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  font-size: 0.82em;
+}
+.admin-effect-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+}
+.admin-effect-field input,
+.admin-effect-field select {
+  width: 70px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 2px 4px;
+}
+.admin-effect-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.admin-part-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.admin-special-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.admin-special-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.admin-special-card__header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 1.4em;
+}
+.admin-special-card__name {
+  font-weight: bold;
+  font-size: 0.75em;
+}
+.admin-special-card__tags {
+  display: flex;
+  gap: 4px;
+  margin: 4px 0 8px;
+}
+.admin-param-form {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin: 8px 0;
+}
+
+.admin-synergy-group {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+}
+.admin-synergy-group__title {
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+.admin-tier-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.85em;
+  padding: 4px 0;
+}
+.admin-tier-row label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+}
+.admin-tier-row input {
+  width: 70px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 2px 4px;
+}
+
+.admin-data-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.admin-json-area {
+  width: 100%;
+  min-height: 220px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: monospace;
+  font-size: 0.8em;
+  padding: 10px;
+}
+.admin-changelog {
+  max-height: 40vh;
+  overflow-y: auto;
+  font-size: 0.85em;
+}
+.admin-changelog__row {
+  padding: 3px 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+@media (max-width: 640px) {
+  .admin-parts-layout {
+    grid-template-columns: 1fr;
+  }
+  .admin-parts-list {
+    max-height: 40vh;
+  }
+}

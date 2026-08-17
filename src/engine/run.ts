@@ -1,5 +1,6 @@
 import type { EnemyDef, EnemyTier, PartDef, PartInstance, Rarity } from '../data/types';
-import { DROPPABLE_PARTS, getPartDef, PARTS_BY_SPECIES, SPECIAL_PART_DEFS, WEAK_ARM } from '../data/parts';
+import { WEAK_ARM } from '../data/parts';
+import { getDroppableParts, getPartDef, getPartsBySpecies, getSpecialPartDefs } from './adminStore';
 import { buildDeepFinalBoss, buildFinalBoss, buildMiniboss, pickEliteEnemy, pickNormalEnemy, scaleEnemy, TIER1_BATTLE_COUNT } from '../data/enemies';
 import { computeCapacity, previewCostForNewPart, type CapacityInfo } from './capacity';
 import { computeBonusHp } from './modifiers';
@@ -206,10 +207,18 @@ function rarityForSlot(baseRarity: Rarity, jackpotChance: number): Rarity {
   return baseRarity;
 }
 
+// 同レアリティ内では dropWeight（省略時1）による相対重み付き抽選を行う。
+// 管理画面で個々の部位のドロップ重みを調整すると、ここにそのまま反映される。
 function pickFromPoolByRarity(pool: PartDef[], rarity: Rarity, usedIds: Set<string>): PartDef | null {
   const candidates = pool.filter((p) => p.rarity === rarity && !usedIds.has(p.id));
   if (candidates.length === 0) return null;
-  return candidates[Math.floor(Math.random() * candidates.length)];
+  const total = candidates.reduce((sum, p) => sum + Math.max(0.01, p.dropWeight ?? 1), 0);
+  let roll = Math.random() * total;
+  for (const p of candidates) {
+    roll -= Math.max(0.01, p.dropWeight ?? 1);
+    if (roll <= 0) return p;
+  }
+  return candidates[candidates.length - 1];
 }
 
 export function generateDropCandidates(enemy: EnemyDef, count = 3, isDeepTier = false): PartDef[] {
@@ -218,7 +227,7 @@ export function generateDropCandidates(enemy: EnemyDef, count = 3, isDeepTier = 
   const species = enemy.species === 'chimera' ? null : enemy.species;
   // 種族プール + 特殊部位（無属性のため、どの種族の敵からでもドロップし得る）。
   // 種族プールが無い場合（最終ボス等）は全部位から抽選。
-  const pool = !species || species === 'none' ? DROPPABLE_PARTS : [...PARTS_BY_SPECIES[species], ...SPECIAL_PART_DEFS];
+  const pool = !species || species === 'none' ? getDroppableParts() : [...getPartsBySpecies(species), ...getSpecialPartDefs()];
 
   const result: PartDef[] = [];
   const usedIds = new Set<string>();

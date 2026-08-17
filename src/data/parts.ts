@@ -496,6 +496,7 @@ const SPECIAL_PARTS: PartDef[] = [
     tags: [],
     icon: '🫧',
     color: '#7e22ce',
+    specialAbilityId: 'special_multi_arm_core',
     effects: [
       { kind: 'cost_modifier', targetType: 'arm', delta: -1 },
       { kind: 'cost_modifier', targetType: 'all_except', exceptType: 'arm', delta: 1 },
@@ -573,6 +574,7 @@ const SPECIAL_PARTS: PartDef[] = [
     tags: [],
     icon: '🕳️',
     color: '#1e293b',
+    specialAbilityId: 'special_hollow_core',
     effects: [{ kind: 'empty_capacity_damage_bonus', pctPerUnused: 4 }],
   },
   {
@@ -607,6 +609,7 @@ const SPECIAL_PARTS: PartDef[] = [
     tags: [],
     icon: '🩸',
     color: '#991b1b',
+    specialAbilityId: 'special_piercing_heart',
     effects: [{ kind: 'fixed_damage_growth_per_proc', amount: 1 }],
   },
   {
@@ -624,6 +627,7 @@ const SPECIAL_PARTS: PartDef[] = [
     tags: ['poison'],
     icon: '🦠',
     color: '#4d7c0f',
+    specialAbilityId: 'special_plague_core',
     effects: [{ kind: 'poison_no_decay_chance', chance: 0.85 }],
   },
   {
@@ -641,7 +645,8 @@ const SPECIAL_PARTS: PartDef[] = [
     tags: [],
     icon: '🧬',
     color: '#c026d3',
-    effects: [{ kind: 'double_activation_chance_all', chance: 0.15 }],
+    specialAbilityId: 'special_rampant_gene',
+    effects: [{ kind: 'double_activation_chance_all', chance: 0.15, maxChain: 1 }],
   },
   {
     id: 'special_total_predation',

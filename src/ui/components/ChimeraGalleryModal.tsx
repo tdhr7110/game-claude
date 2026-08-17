@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useGame } from '../GameContext';
-import { getPartDef } from '../../data/parts';
+import { getPartDef } from '../../engine/adminStore';
 import { PartDetailPanel } from './PartDetailPanel';
 import { PartCard } from './PartCard';
 import { SynergyPanel } from './SynergyPanel';

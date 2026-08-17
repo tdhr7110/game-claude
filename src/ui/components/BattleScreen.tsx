@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../GameContext';
 import { BattleEngine, type BattleSnapshot, type CombatantSnapshot, type SpeedSetting } from '../../engine/battle';
-import { getPartDef } from '../../data/parts';
+import { getPartDef } from '../../engine/adminStore';
 import { CORE_HP_BASE, BASE_DEFENSE, getCapacityInfo, TOTAL_BATTLES } from '../../engine/run';
 import { ChimeraAvatar } from './ChimeraAvatar';
 import type { PartDef } from '../../data/types';

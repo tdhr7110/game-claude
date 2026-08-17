@@ -82,18 +82,20 @@ export type PartEffect =
   // 戦闘後のドロップ候補数を増やす（完全捕食）
   | { kind: 'extra_drop_candidates'; amount: number }
   // 全ての部位種類について、能力発動時に低確率でもう一度発動する（暴走遺伝子）
-  | { kind: 'double_activation_chance_all'; chance: number }
+  // maxChain: 1戦闘・1発動あたりの最大連鎖回数（省略時は1=従来通り1回だけ追加発動）。
+  // 安全のため、実際の適用時にさらに絶対上限(10)でクランプされる（無限ループ対策）。
+  | { kind: 'double_activation_chance_all'; chance: number; maxChain?: number }
   // 心臓・臓器の装着数に応じて最大HPと攻撃力が上昇する（巨大心臓）
   | { kind: 'heart_count_bonus'; hpPerHeart: number; attackPctPerHeart: number };
 
 export interface PartDef {
   id: string;
   name: string;
-  type: PartType;
+  type: PartType; // = 管理画面上の「カテゴリ」
   species: Species;
   rarity: Rarity;
-  cost: number;
-  hpBonus: number;
+  cost: number; // = 接続コスト(connectionCost)
+  hpBonus: number; // = HP補正(hpModifier)
   attack: number; // 0 の場合はパッシブ専用（攻撃しない）
   interval: number; // 秒。attack>0 なら攻撃間隔、attack===0 ならパッシブ発動間隔（0の場合は常時静的効果のみ）
   description: string;
@@ -102,6 +104,10 @@ export interface PartDef {
   icon: string;
   color: string;
   effects: PartEffect[];
+  // --- 能力管理基盤で追加したメタ情報（すべて省略可・既存データへの後方互換あり） ---
+  specialAbilityId?: string; // specialAbilities.ts のエントリと紐づく場合のID（管理画面でのパラメータ編集導線用）
+  dropWeight?: number; // 同レアリティ内での相対ドロップ重み（省略時は1として扱う）
+  enabled?: boolean; // false の場合、ドロップ候補プールから除外される（省略時はtrue扱い。装備済み部位の解決には影響しない）
 }
 
 export interface PartInstance {

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../GameContext';
 import { equippedDefs, getCapacityInfo, getMaxHp, battleSlotLabel, battleSlotLabelForIndex, BATTLE_SEQUENCE, TOTAL_BATTLES } from '../../engine/run';
-import { getPartDef } from '../../data/parts';
+import { getPartDef } from '../../engine/adminStore';
 import { computeActiveSynergies } from '../../engine/synergyEngine';
 import { computeModifiers } from '../../engine/modifiers';
 import { previewCostForNewPart } from '../../engine/capacity';

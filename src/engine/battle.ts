@@ -15,6 +15,7 @@ export type BattleStatus = 'ongoing' | 'won' | 'lost';
 
 const STATUS_TICK_INTERVAL = 1.0; // 毒・炎上の判定間隔（秒）
 const MIN_EFFECTIVE_INTERVAL = 0.15; // 高速化しすぎた場合の下限（無限ループ防止）
+const ABSOLUTE_MAX_CHAIN = 10; // 暴走遺伝子等の連鎖発動が管理画面から異常な値に設定されても止まるようにする絶対上限
 
 interface RuntimePart {
   instanceId: string;
@@ -398,17 +399,23 @@ export class BattleEngine {
 
     if (part.attack > 0) {
       this.resolveAttack(attacker, defender, part, true);
-      // 頭・口・目5個シナジー: 20%で2回発動
-      const doubleChance = attacker.mods.typeDoubleActivationChance[part.type];
-      if (doubleChance && !attacker.isDead && !defender.isDead && Math.random() < doubleChance) {
-        this.pushLog(`🔄 ${attacker.name}の${part.name}が連続発動！`);
-        this.resolveAttack(attacker, defender, part, false);
-      }
     } else {
       // パッシブ発動（回復・固定ダメージなど）
       this.applyPassiveEffectsOnce(attacker, defender, part);
-      const doubleChance = attacker.mods.typeDoubleActivationChance[part.type];
-      if (doubleChance && !attacker.isDead && !defender.isDead && Math.random() < doubleChance) {
+    }
+
+    // 頭・口・目5個シナジー（20%で2回発動）や暴走遺伝子（管理画面で調整可能な確率・最大連鎖回数）による再発動。
+    // maxChainは絶対上限(ABSOLUTE_MAX_CHAIN)でさらにクランプし、無限ループを防ぐ（要件29）。
+    const doubleChance = attacker.mods.typeDoubleActivationChance[part.type];
+    if (!doubleChance) return;
+    const maxChain = Math.min(attacker.mods.typeDoubleActivationMaxChain[part.type] ?? 1, ABSOLUTE_MAX_CHAIN);
+    let chain = 0;
+    while (chain < maxChain && !attacker.isDead && !defender.isDead && Math.random() < doubleChance) {
+      chain++;
+      if (part.attack > 0) {
+        this.pushLog(`🔄 ${attacker.name}の${part.name}が連続発動！（${chain}連鎖）`);
+        this.resolveAttack(attacker, defender, part, false);
+      } else {
         this.applyPassiveEffectsOnce(attacker, defender, part);
       }
     }

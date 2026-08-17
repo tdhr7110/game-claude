@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useGame } from '../GameContext';
-import { ALL_PARTS } from '../../data/parts';
+import { getAllParts, subscribe } from '../../engine/adminStore';
 import type { SpeedSetting } from '../../engine/battle';
 
 export function DebugPanel() {
   const { state, dispatch, battleEngineRef } = useGame();
   const [open, setOpen] = useState(false);
-  const [selectedPartId, setSelectedPartId] = useState(ALL_PARTS[0]?.id ?? '');
+  const [parts, setParts] = useState(getAllParts());
+  const [selectedPartId, setSelectedPartId] = useState(parts[0]?.id ?? '');
+
+  useEffect(() => subscribe(() => setParts(getAllParts())), []);
 
   useEffect(() => {
     document.body.classList.toggle('debug-open', open);
@@ -65,9 +68,10 @@ export function DebugPanel() {
         <label>任意の部位を取得</label>
         <div className="debug-panel__row">
           <select value={selectedPartId} onChange={(e) => setSelectedPartId(e.target.value)}>
-            {ALL_PARTS.map((p) => (
+            {parts.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.icon} {p.name}
+                {p.enabled === false ? '（無効）' : ''}
               </option>
             ))}
           </select>
@@ -134,6 +138,12 @@ export function DebugPanel() {
 
       <div className="debug-panel__group muted">
         フェーズ: {state.phase} / 戦闘番号: {state.battleIndex} / コアHP: {state.coreHp}
+      </div>
+
+      <div className="debug-panel__group">
+        <a className="btn btn--small btn--ghost" href="#admin">
+          ⚙️ BALANCE管理画面へ
+        </a>
       </div>
     </div>
   );
