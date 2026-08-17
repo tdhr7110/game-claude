@@ -171,52 +171,70 @@ export function battleSlotLabel(state: RunState): string {
 }
 
 // --- ドロップ ---
+// レアリティの決め方: 「敵の強さ(tier)に応じた基準レアリティ」をまず決め、候補のほとんどはそのレアリティに揃える。
+// そのうえで低確率のみ1段階上のレアリティに“昇格”させる（たまに強い部位が混ざる）。
+// 個々の部位アイテムの重み付き抽選ではなく先にレアリティを決める方式にすることで、
+// プール内の部位構成（特殊部位の混在など）に左右されず、狙った通りの出現率を保てる。
 
-const RARITY_WEIGHTS: Record<EnemyTier, Record<Rarity, number>> = {
-  normal: { common: 70, uncommon: 25, rare: 5 },
-  elite: { common: 45, uncommon: 38, rare: 17 },
-  miniboss: { common: 25, uncommon: 42, rare: 33 },
-  boss: { common: 10, uncommon: 30, rare: 60 },
+const RARITY_ORDER: Rarity[] = ['common', 'uncommon', 'rare'];
+
+const BASE_RARITY_BY_TIER: Record<EnemyTier, Rarity> = {
+  normal: 'common',
+  elite: 'uncommon',
+  miniboss: 'uncommon',
+  boss: 'rare',
 };
 
-// 第2階層(9戦目以降)のドロップ抽選テーブル。コモンは下がり、アンコモン・レアは明確に上昇する。
-const RARITY_WEIGHTS_DEEP: Record<EnemyTier, Record<Rarity, number>> = {
-  normal: { common: 45, uncommon: 35, rare: 20 },
-  elite: { common: 25, uncommon: 40, rare: 35 },
-  miniboss: { common: 12, uncommon: 38, rare: 50 },
-  boss: { common: 5, uncommon: 20, rare: 75 },
+// 第2階層(9戦目以降)は基準レアリティを1段階引き上げ、「深層へ行くほど明確に強い部位」を表現する。
+const BASE_RARITY_BY_TIER_DEEP: Record<EnemyTier, Rarity> = {
+  normal: 'uncommon',
+  elite: 'rare',
+  miniboss: 'rare',
+  boss: 'rare',
 };
 
-function weightedSampleWithoutReplacement(pool: PartDef[], weights: Record<Rarity, number>, count: number): PartDef[] {
-  const remaining = [...pool];
-  const result: PartDef[] = [];
-  for (let i = 0; i < count && remaining.length > 0; i++) {
-    const total = remaining.reduce((sum, p) => sum + weights[p.rarity], 0);
-    let roll = Math.random() * total;
-    let pickedIndex = 0;
-    for (let j = 0; j < remaining.length; j++) {
-      roll -= weights[remaining[j].rarity];
-      if (roll <= 0) {
-        pickedIndex = j;
-        break;
-      }
-    }
-    result.push(remaining[pickedIndex]);
-    remaining.splice(pickedIndex, 1);
+const JACKPOT_CHANCE = 0.18; // 通常時、1候補が1段階上のレアリティになる確率
+const JACKPOT_CHANCE_DEEP = 0.25; // 第2階層はやや高め
+
+function rarityForSlot(baseRarity: Rarity, jackpotChance: number): Rarity {
+  const baseIdx = RARITY_ORDER.indexOf(baseRarity);
+  if (baseIdx < RARITY_ORDER.length - 1 && Math.random() < jackpotChance) {
+    return RARITY_ORDER[baseIdx + 1];
   }
-  return result;
+  return baseRarity;
+}
+
+function pickFromPoolByRarity(pool: PartDef[], rarity: Rarity, usedIds: Set<string>): PartDef | null {
+  const candidates = pool.filter((p) => p.rarity === rarity && !usedIds.has(p.id));
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
 export function generateDropCandidates(enemy: EnemyDef, count = 3, isDeepTier = false): PartDef[] {
-  const weights = (isDeepTier ? RARITY_WEIGHTS_DEEP : RARITY_WEIGHTS)[enemy.tier];
+  const baseRarity = (isDeepTier ? BASE_RARITY_BY_TIER_DEEP : BASE_RARITY_BY_TIER)[enemy.tier];
+  const jackpotChance = isDeepTier ? JACKPOT_CHANCE_DEEP : JACKPOT_CHANCE;
   const species = enemy.species === 'chimera' ? null : enemy.species;
-  if (!species || species === 'none') {
-    // 最終ボス等、種族プールが無い場合は全部位(特殊部位含む)から抽選
-    return weightedSampleWithoutReplacement(DROPPABLE_PARTS, weights, count);
+  // 種族プール + 特殊部位（無属性のため、どの種族の敵からでもドロップし得る）。
+  // 種族プールが無い場合（最終ボス等）は全部位から抽選。
+  const pool = !species || species === 'none' ? DROPPABLE_PARTS : [...PARTS_BY_SPECIES[species], ...SPECIAL_PART_DEFS];
+
+  const result: PartDef[] = [];
+  const usedIds = new Set<string>();
+  for (let i = 0; i < count; i++) {
+    const rarity = rarityForSlot(baseRarity, jackpotChance);
+    let pick = pickFromPoolByRarity(pool, rarity, usedIds);
+    if (!pick) {
+      // そのレアリティの在庫が尽きた場合は他のレアリティから補う
+      for (const r of RARITY_ORDER) {
+        pick = pickFromPoolByRarity(pool, r, usedIds);
+        if (pick) break;
+      }
+    }
+    if (!pick) break; // プール自体が尽きた
+    usedIds.add(pick.id);
+    result.push(pick);
   }
-  // 種族プール + 特殊部位（無属性のため、どの種族の敵からでもドロップし得る）
-  const pool = [...PARTS_BY_SPECIES[species], ...SPECIAL_PART_DEFS];
-  return weightedSampleWithoutReplacement(pool, weights, Math.min(count, pool.length));
+  return result;
 }
 
 // --- 戦闘後処理 ---

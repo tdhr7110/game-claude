@@ -162,9 +162,10 @@ function scaleMove(move: EnemyMove, atkMult: number): EnemyMove {
 // 第1階層(1-8戦)の戦闘数。深層(第2階層)の判定・倍率計算の基準に使う。
 export const TIER1_BATTLE_COUNT = 8;
 
-// 第2階層(9戦以降)の深層倍率。9戦目で1.4倍、16戦目で1.8倍になるよう線形補間する。
-const DEEP_TIER_MULT_START = 1.4;
-const DEEP_TIER_MULT_END = 1.8;
+// 第2階層(9戦以降)の深層倍率。9戦目で1.25倍、16戦目で1.55倍になるよう線形補間する。
+// （テスト版フィードバックにより、全体の難易度をやや引き下げるため元の1.4〜1.8から緩和）
+const DEEP_TIER_MULT_START = 1.25;
+const DEEP_TIER_MULT_END = 1.55;
 const DEEP_TIER_PROGRESS_SPAN = 7; // 9戦目(progress=0)〜16戦目(progress=7)
 
 function deepTierMultiplier(battleIndex: number): number {
@@ -222,12 +223,12 @@ function applyDeepTierScaling(def: EnemyDef, battleIndex: number): EnemyDef {
 }
 
 // 戦闘番号に応じて敵をスケーリングする。
-// 1-8戦(第1階層)は従来通りの緩やかな線形スケーリング。
+// 1-8戦(第1階層)は従来よりやや緩やかな線形スケーリング（テスト版で難易度を少し引き下げ）。
 // 9戦目以降(第2階層)は第1階層8戦目相当の強さを土台に、種族特化の深層倍率をさらに掛ける。
 export function scaleEnemy(def: EnemyDef, battleIndex: number): EnemyDef {
   const clampedIndex = Math.min(battleIndex, TIER1_BATTLE_COUNT);
-  const hpMult = 1 + (clampedIndex - 1) * 0.2;
-  const atkMult = 1 + (clampedIndex - 1) * 0.11;
+  const hpMult = 1 + (clampedIndex - 1) * 0.15;
+  const atkMult = 1 + (clampedIndex - 1) * 0.085;
   let scaled: EnemyDef = {
     ...def,
     hp: Math.round(def.hp * hpMult),
@@ -261,10 +262,10 @@ export function buildMiniboss(excludeIds: string[] = [], battleIndex: number = 5
     id: `${base.id}_miniboss`,
     name: `【中ボス】強化${base.name}`,
     tier: 'miniboss',
-    hp: Math.round(base.hp * 1.6),
-    defense: base.defense + 4,
-    damageReductionPct: base.damageReductionPct + 6,
-    moves: base.moves.map((m) => scaleMove(m, 1.3)),
+    hp: Math.round(base.hp * 1.45),
+    defense: base.defense + 3,
+    damageReductionPct: base.damageReductionPct + 5,
+    moves: base.moves.map((m) => scaleMove(m, 1.2)),
   };
 }
 
@@ -275,10 +276,10 @@ export function buildFinalBoss(): EnemyDef {
     name: '大キメラ',
     species: 'chimera',
     tier: 'boss',
-    hp: 580,
+    hp: 520,
     defense: 6,
-    damageReductionPct: 10,
-    evasionPct: 8,
+    damageReductionPct: 9,
+    evasionPct: 7,
     description: '昆虫・ゴーレム・ドラゴンの部位を寄せ集めた、この地の頂点。',
     icon: '👹',
     color: '#581c87',
@@ -299,14 +300,14 @@ export function buildDeepFinalBoss(): EnemyDef {
     id: 'final_chimera_awakened',
     name: '覚醒した大キメラ',
     description: '深層の力を取り込み、さらに巨大化・凶暴化した大キメラの成れの果て。',
-    hp: Math.round(base.hp * 1.7),
-    defense: base.defense + 5,
-    damageReductionPct: base.damageReductionPct + 5,
+    hp: Math.round(base.hp * 1.55),
+    defense: base.defense + 4,
+    damageReductionPct: base.damageReductionPct + 4,
     evasionPct: base.evasionPct + 2,
     moves: base.moves.map((m) => ({
       ...m,
-      attack: Math.round(m.attack * 1.4 * 10) / 10,
-      effects: m.effects.map((e) => scaleStatusEffect(e, 1.3)),
+      attack: Math.round(m.attack * 1.3 * 10) / 10,
+      effects: m.effects.map((e) => scaleStatusEffect(e, 1.2)),
     })),
   };
 }
