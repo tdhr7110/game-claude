@@ -11,10 +11,10 @@ const NORMAL_ENEMIES: EnemyDef[] = [
     name: '毒蜘蛛',
     species: 'insect',
     tier: 'normal',
-    hp: 45,
+    hp: 28,
     defense: 0,
     damageReductionPct: 0,
-    evasionPct: 12,
+    evasionPct: 6,
     description: '素早く動き回り、毒の牙で獲物を弱らせる。',
     icon: '🕷️',
     color: '#4d7c0f',
@@ -28,10 +28,10 @@ const NORMAL_ENEMIES: EnemyDef[] = [
     name: '鎌蟲',
     species: 'insect',
     tier: 'normal',
-    hp: 50,
+    hp: 32,
     defense: 0,
     damageReductionPct: 0,
-    evasionPct: 10,
+    evasionPct: 5,
     description: '二対の鎌で絶え間なく斬りつける手数型の虫。',
     icon: '🦗',
     color: '#65a30d',
@@ -45,9 +45,9 @@ const NORMAL_ENEMIES: EnemyDef[] = [
     name: '小型ゴーレム',
     species: 'golem',
     tier: 'normal',
-    hp: 55,
+    hp: 36,
     defense: 1,
-    damageReductionPct: 5,
+    damageReductionPct: 3,
     evasionPct: 0,
     description: '鈍重だが硬い岩の身体を持つ。',
     icon: '🗿',
@@ -59,9 +59,9 @@ const NORMAL_ENEMIES: EnemyDef[] = [
     name: '水晶ゴーレム',
     species: 'golem',
     tier: 'normal',
-    hp: 60,
+    hp: 38,
     defense: 1,
-    damageReductionPct: 5,
+    damageReductionPct: 3,
     evasionPct: 0,
     description: '体内の水晶から魔力光線を放つ。',
     icon: '💠',
@@ -73,10 +73,10 @@ const NORMAL_ENEMIES: EnemyDef[] = [
     name: '火竜の幼体',
     species: 'dragon',
     tier: 'normal',
-    hp: 60,
+    hp: 38,
     defense: 0,
     damageReductionPct: 0,
-    evasionPct: 5,
+    evasionPct: 3,
     description: 'まだ幼いが、口から小さな火炎を吐く。',
     icon: '🐣',
     color: '#c2410c',
@@ -87,10 +87,10 @@ const NORMAL_ENEMIES: EnemyDef[] = [
     name: '翼竜',
     species: 'dragon',
     tier: 'normal',
-    hp: 55,
+    hp: 34,
     defense: 0,
     damageReductionPct: 0,
-    evasionPct: 8,
+    evasionPct: 4,
     description: '空を舞い、爪と体当たりで攻撃する。',
     icon: '🦅',
     color: '#991b1b',
@@ -223,12 +223,15 @@ function applyDeepTierScaling(def: EnemyDef, battleIndex: number): EnemyDef {
 }
 
 // 戦闘番号に応じて敵をスケーリングする。
-// 1-8戦(第1階層)は従来よりさらに緩やかな線形スケーリング（テスト版フィードバックで2段階目の引き下げ）。
-// 9戦目以降(第2階層)は第1階層8戦目相当の強さを土台に、種族特化の深層倍率をさらに掛ける。
+// 1-8戦(第1階層)の伸び幅はtierごとに変える：
+// 「通常敵=基本的に勝ちやすい」を保つため、通常(normal)はほぼ横ばいの緩やかな伸びに留め、
+// 「エリート=少し危険」の緊張感を出すため、強敵(elite)は従来通りの伸びを維持する。
+// 9戦目以降(第2階層)は第1階層8戦目相当の強さを土台に、種族特化の深層倍率をさらに掛ける（深層=通常より難しい）。
 export function scaleEnemy(def: EnemyDef, battleIndex: number): EnemyDef {
   const clampedIndex = Math.min(battleIndex, TIER1_BATTLE_COUNT);
-  const hpMult = 1 + (clampedIndex - 1) * 0.11;
-  const atkMult = 1 + (clampedIndex - 1) * 0.065;
+  const isNormalTier = def.tier === 'normal';
+  const hpMult = 1 + (clampedIndex - 1) * (isNormalTier ? 0.04 : 0.11);
+  const atkMult = 1 + (clampedIndex - 1) * (isNormalTier ? 0.02 : 0.065);
   let scaled: EnemyDef = {
     ...def,
     hp: Math.round(def.hp * hpMult),
