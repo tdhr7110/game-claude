@@ -14,12 +14,14 @@ export const BATTLE_SEQUENCE: BattleSlotType[] = [...TIER_PATTERN, ...TIER_PATTE
 export const TOTAL_BATTLES = BATTLE_SEQUENCE.length;
 export { TIER1_BATTLE_COUNT };
 
-export const CORE_HP_BASE = 100;
+// テスト版フィードバックにより、プレイヤー側の基礎耐久を引き上げて難易度を緩和（本番版は100のまま別管理）
+export const CORE_HP_BASE = 120;
 export const BASE_CAPACITY = 12;
-export const BASE_DEFENSE = 0;
+export const BASE_DEFENSE = 2;
 // 戦闘勝利後の小休止による自然回復割合（最大HPに対する割合）。
 // 心臓・臓器パーツによる戦闘中回復とは別に、8連戦を現実的に成立させるための仮の救済措置。
-export const POST_VICTORY_RECOVERY_PCT = 0.35;
+// テスト版フィードバックにより、連戦の消耗を緩和するため引き上げ（0.35→0.45）。
+export const POST_VICTORY_RECOVERY_PCT = 0.45;
 
 export interface RunState {
   phase: GamePhase;

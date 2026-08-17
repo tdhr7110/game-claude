@@ -518,10 +518,27 @@ h3 {
 .gallery-entry__sub {
   font-size: 0.8em;
 }
+.gallery-entry__build-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .gallery-detail {
   margin: 10px 0;
   max-height: 40vh;
   overflow-y: auto;
+}
+.gallery-build__header {
+  margin-bottom: 10px;
+}
+.gallery-build__title {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+.gallery-build__stats {
+  font-size: 0.85em;
+}
+.gallery-build .part-grid {
+  margin-bottom: 12px;
 }
 
 .combatant-panel {
@@ -1049,6 +1066,7 @@ body.debug-open {
   .gallery-entry {
     gap: 8px;
     padding: 6px 8px;
+    flex-wrap: wrap;
   }
   .gallery-entry__icons {
     max-width: 64px;
@@ -1058,5 +1076,8 @@ body.debug-open {
   }
   .gallery-entry__sub {
     font-size: 0.72em;
+  }
+  .gallery-entry__build-btn {
+    flex-basis: 100%;
   }
 }

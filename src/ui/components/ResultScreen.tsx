@@ -30,6 +30,7 @@ export function ResultScreen() {
       battleReached: state.battleIndex,
       icons: eqDefs.map((d) => d.icon),
       partIds: eqDefs.map((d) => d.id),
+      permanentCapacityBonus: state.permanentCapacityBonus,
     });
     setSavedName(name);
   }

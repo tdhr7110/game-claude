@@ -2,15 +2,36 @@ import { useState } from 'react';
 import { useGame } from '../GameContext';
 import { getPartDef } from '../../data/parts';
 import { PartDetailPanel } from './PartDetailPanel';
+import { PartCard } from './PartCard';
+import { SynergyPanel } from './SynergyPanel';
+import { computeActiveSynergies } from '../../engine/synergyEngine';
+import { computeBonusHp, computeModifiers } from '../../engine/modifiers';
+import { computeCapacity } from '../../engine/capacity';
+import { BASE_CAPACITY, CORE_HP_BASE } from '../../engine/run';
 
 interface ChimeraGalleryModalProps {
   onClose: () => void;
 }
 
+type DetailView = { kind: 'part'; partId: string } | { kind: 'build'; chimeraId: string } | null;
+
 export function ChimeraGalleryModal({ onClose }: ChimeraGalleryModalProps) {
   const { chimeraGallery } = useGame();
-  const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
-  const selectedDef = selectedPartId ? getPartDef(selectedPartId) : null;
+  const [view, setView] = useState<DetailView>(null);
+
+  const selectedDef = view?.kind === 'part' ? getPartDef(view.partId) : null;
+  const selectedChimera = view?.kind === 'build' ? chimeraGallery.find((c) => c.id === view.chimeraId) ?? null : null;
+
+  const buildOverview = (() => {
+    if (!selectedChimera) return null;
+    const defs = selectedChimera.partIds.map((id) => getPartDef(id));
+    const equipped = defs.map((def, i) => ({ instanceId: `gallery_${i}`, def }));
+    const synergies = computeActiveSynergies(defs);
+    const mods = computeModifiers(defs, synergies);
+    const capacity = computeCapacity(equipped, BASE_CAPACITY, selectedChimera.permanentCapacityBonus);
+    const maxHp = CORE_HP_BASE + computeBonusHp(defs);
+    return { defs, capacity, synergies, critPct: Math.round(mods.critChance * 100), maxHp };
+  })();
 
   return (
     <div className="intro-overlay" onClick={onClose}>
@@ -30,9 +51,9 @@ export function ChimeraGalleryModal({ onClose }: ChimeraGalleryModalProps) {
                       <button
                         key={`${partId}-${i}`}
                         type="button"
-                        className={`gallery-entry__icon-btn${selectedPartId === partId ? ' gallery-entry__icon-btn--selected' : ''}`}
+                        className={`gallery-entry__icon-btn${view?.kind === 'part' && view.partId === partId ? ' gallery-entry__icon-btn--selected' : ''}`}
                         title={`${getPartDef(partId).name}の詳細を見る`}
-                        onClick={() => setSelectedPartId(partId)}
+                        onClick={() => setView({ kind: 'part', partId })}
                       >
                         {c.icons[i] ?? getPartDef(partId).icon}
                       </button>
@@ -56,6 +77,15 @@ export function ChimeraGalleryModal({ onClose }: ChimeraGalleryModalProps) {
                     {c.outcome === 'victory' ? 'ラン勝利' : `第${c.battleReached}戦で敗北`} ・ 部位{c.icons.length}個
                   </div>
                 </div>
+                {c.partIds.length > 0 && (
+                  <button
+                    type="button"
+                    className={`btn btn--small gallery-entry__build-btn${view?.kind === 'build' && view.chimeraId === c.id ? ' btn--primary' : ' btn--ghost'}`}
+                    onClick={() => setView({ kind: 'build', chimeraId: c.id })}
+                  >
+                    🧬 ビルド全体
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -63,6 +93,25 @@ export function ChimeraGalleryModal({ onClose }: ChimeraGalleryModalProps) {
         {selectedDef && (
           <div className="gallery-detail">
             <PartDetailPanel def={selectedDef} />
+          </div>
+        )}
+        {buildOverview && selectedChimera && (
+          <div className="gallery-detail gallery-build">
+            <div className="gallery-build__header">
+              <div className="gallery-build__title">
+                🧬 {selectedChimera.name} のビルド（{selectedChimera.outcome === 'victory' ? 'ラン勝利' : `第${selectedChimera.battleReached}戦で敗北`}）
+              </div>
+              <div className="muted gallery-build__stats">
+                ❤️ 最大HP {buildOverview.maxHp} ・ 🔌 接続容量 {buildOverview.capacity.used}/{buildOverview.capacity.total} ・ 部位
+                {buildOverview.defs.length}個
+              </div>
+            </div>
+            <div className="part-grid">
+              {buildOverview.defs.map((def, i) => (
+                <PartCard key={`${def.id}-${i}`} def={def} cost={buildOverview.capacity.instanceCosts[`gallery_${i}`]} compact />
+              ))}
+            </div>
+            <SynergyPanel synergies={buildOverview.synergies} critChancePct={buildOverview.critPct} />
           </div>
         )}
         <button className="btn btn--primary btn--large" onClick={onClose}>
