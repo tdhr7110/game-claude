@@ -73,6 +73,25 @@ jobs:
           mkdir -p ../dist/test2
           cp -r dist/. ../dist/test2/
 
+      # フェーズ3（TEST3: キャラクター可視化・アニメーション・戦闘演出検証版）を /test3/ サブパスに同梱する。
+      # TEST1・TEST2・正式版とは完全に独立したブランチで、取得・ビルドに失敗しても他のデプロイは継続する。
+      - name: Checkout test3 branch (フェーズ3検証用)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: test3/chimera-butcher-phase3
+          path: test3-branch
+
+      - name: Build test3 branch into /test3/ subpath
+        if: hashFiles('test3-branch/package.json') != ''
+        continue-on-error: true
+        run: |
+          cd test3-branch
+          npm ci
+          npm run build -- --base=/game-claude/test3/
+          mkdir -p ../dist/test3
+          cp -r dist/. ../dist/test3/
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
