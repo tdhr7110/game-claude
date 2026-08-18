@@ -118,6 +118,7 @@ const ELITE_ENEMIES: EnemyDef[] = [
       { id: 'm1', name: '毒針乱舞', attack: 3, interval: 1.1, tags: ['poison'], effects: [{ kind: 'apply_poison', amount: 1 }], icon: '🪡' },
       { id: 'm2', name: '鎌撃', attack: 3, interval: 1.1, tags: [], effects: [], icon: '⚔️' },
     ],
+    gimmick: { kind: 'insect_frenzy', cycleSeconds: 9, telegraphSeconds: 2, frenzyDurationSeconds: 4, attackSpeedMult: 1.8 },
   },
   {
     id: 'colossus_golem',
@@ -135,6 +136,7 @@ const ELITE_ENEMIES: EnemyDef[] = [
       { id: 'm1', name: '大岩拳', attack: 7, interval: 2.4, tags: [], effects: [], icon: '👊' },
       { id: 'm2', name: '地割れ', attack: 5, interval: 3.0, tags: [], effects: [], icon: '🌋' },
     ],
+    gimmick: { kind: 'golem_fortify', cycleSeconds: 8, telegraphSeconds: 1.5, fortifyDurationSeconds: 3, damageReductionBonusPct: 35 },
   },
   {
     id: 'twin_dragon',
@@ -152,6 +154,7 @@ const ELITE_ENEMIES: EnemyDef[] = [
       { id: 'm1', name: '火炎ブレス', attack: 4, interval: 2.0, tags: ['fire'], effects: [{ kind: 'apply_burn', dps: 2, duration: 4 }], icon: '🔥' },
       { id: 'm2', name: '爪撃', attack: 4, interval: 1.2, tags: [], effects: [], icon: '🐾' },
     ],
+    gimmick: { kind: 'dragon_charge', chargeSeconds: 3, burstMultiplier: 3, cooldownSeconds: 7 },
   },
 ];
 

@@ -18,7 +18,8 @@ import { SPECIAL_ABILITIES } from '../data/specialAbilities';
 import type { AdminPersistedState, ChangeLogEntry, PartPatch, SpecialAbilityDef } from '../data/adminTypes';
 import { applySpecialAbilityParams, readSpecialAbilityParams } from './specialAbilityHandlers';
 
-const STORAGE_KEY = 'chimera-battle:admin-overrides:v1';
+// TEST2環境専用のnamespaceを付与し、TEST1のBALANCE調整データと衝突しないようにする
+const STORAGE_KEY = 'chimera-battle:test2:admin-overrides:v1';
 const MAX_LOG_ENTRIES = 60;
 
 function emptyState(): AdminPersistedState {

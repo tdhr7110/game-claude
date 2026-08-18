@@ -30,7 +30,9 @@ export interface NamedChimera {
 
 // キメラ図鑑だけをブラウザに保存する（ラン進行状況はセーブ対象外）。
 // 形式が壊れている・将来スキーマが変わった場合は空配列にフォールバックする。
-const GALLERY_STORAGE_KEY = 'chimera-battle:gallery:v1';
+// TEST2環境専用のnamespaceを付与し、本番版/TEST1版のlocalStorageと衝突しないようにする
+// （production/test1は "chimera-battle:gallery:v1" のまま、test2ブランチはここでのみ "test2:" を付ける）。
+const GALLERY_STORAGE_KEY = 'chimera-battle:test2:gallery:v1';
 
 function loadGalleryFromStorage(): NamedChimera[] {
   try {

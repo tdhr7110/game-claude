@@ -131,6 +131,18 @@ export interface EnemyMove {
   icon: string;
 }
 
+// ------------------------------------------------------------
+// 敵ギミック（TEST2フェーズ2限定: 予告つき特殊行動）
+// 敵を強くするためのものではなく、プレイヤーにコマンド使用の判断を促すための仕組み。
+// ------------------------------------------------------------
+export type EnemyGimmick =
+  // ゴーレム系: 一定周期で「防御態勢準備」→「防御態勢」（被ダメージ軽減）→解除、を繰り返す
+  | { kind: 'golem_fortify'; cycleSeconds: number; telegraphSeconds: number; fortifyDurationSeconds: number; damageReductionBonusPct: number }
+  // ドラゴン系: 大技をチャージし、チャージ完了時に一度だけ強力な一撃を放つ
+  | { kind: 'dragon_charge'; chargeSeconds: number; burstMultiplier: number; cooldownSeconds: number }
+  // 昆虫系: 予告後、一定時間だけ攻撃速度が大幅上昇する「狂乱状態」になる
+  | { kind: 'insect_frenzy'; cycleSeconds: number; telegraphSeconds: number; frenzyDurationSeconds: number; attackSpeedMult: number };
+
 export interface EnemyDef {
   id: string;
   name: string;
@@ -144,6 +156,7 @@ export interface EnemyDef {
   description: string;
   icon: string;
   color: string;
+  gimmick?: EnemyGimmick;
 }
 
 // ------------------------------------------------------------

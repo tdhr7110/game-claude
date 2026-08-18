@@ -1368,3 +1368,130 @@ body.debug-open {
     max-height: 40vh;
   }
 }
+
+/* ============================================================
+   TEST2フェーズ2: コマンド・敵ギミック
+   ============================================================ */
+.command-bar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+.command-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 96px;
+  background: var(--bg-panel);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: var(--text);
+  cursor: pointer;
+  opacity: 0.55;
+}
+.command-btn--ready {
+  opacity: 1;
+  border-color: var(--accent);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.35);
+}
+.command-btn:disabled {
+  cursor: not-allowed;
+}
+.command-btn__icon {
+  font-size: 1.4em;
+}
+.command-btn__name {
+  font-weight: bold;
+  font-size: 0.9em;
+}
+.command-btn__status {
+  font-size: 0.75em;
+  color: var(--text-muted);
+}
+.command-btn--ready .command-btn__status {
+  color: var(--success);
+  font-weight: bold;
+}
+.command-btn--flash {
+  animation: command-flash 0.4s ease-out;
+}
+@keyframes command-flash {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(250, 204, 21, 0.8);
+  }
+  40% {
+    transform: scale(1.08);
+    box-shadow: 0 0 20px rgba(250, 204, 21, 0.8);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.command-btn__flash-text {
+  position: absolute;
+  top: -10px;
+  right: -6px;
+  background: var(--warn);
+  color: #1a1420;
+  font-size: 0.65em;
+  font-weight: bold;
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+.gimmick-indicator {
+  background: rgba(250, 204, 21, 0.1);
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  padding: 4px 8px;
+  margin: 4px 0;
+  font-size: 0.8em;
+  text-align: center;
+}
+.gimmick-indicator--active {
+  background: rgba(248, 113, 113, 0.15);
+  border-color: var(--danger);
+}
+.gimmick-indicator__label {
+  font-weight: bold;
+}
+.gimmick-indicator__bar {
+  letter-spacing: 2px;
+  color: var(--warn);
+}
+.gimmick-indicator--active .gimmick-indicator__bar {
+  color: var(--danger);
+}
+.gimmick-indicator__time {
+  color: var(--text-muted);
+  font-size: 0.85em;
+}
+
+@media (max-width: 640px) {
+  .command-bar {
+    gap: 6px;
+    margin: 8px 0;
+  }
+  .command-btn {
+    min-width: 74px;
+    padding: 6px 8px;
+  }
+  .command-btn__icon {
+    font-size: 1.15em;
+  }
+  .command-btn__name {
+    font-size: 0.78em;
+  }
+  .command-btn__status {
+    font-size: 0.65em;
+  }
+  .gimmick-indicator {
+    font-size: 0.7em;
+    padding: 3px 6px;
+  }
+}
