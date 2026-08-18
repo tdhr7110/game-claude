@@ -11,11 +11,13 @@ import { CapacityBar } from './CapacityBar';
 import { SynergyPanel } from './SynergyPanel';
 import { ChimeraAvatar } from './ChimeraAvatar';
 import { ChimeraGalleryModal } from './ChimeraGalleryModal';
+import { CommandEditModal } from './CommandEditModal';
 
 export function PrepScreen() {
   const { state, dispatch, equipError, setEquipError, setShowIntro, chimeraGallery } = useGame();
   const [selectedDefId, setSelectedDefId] = useState<string | null>(null);
   const [showGallery, setShowGallery] = useState(false);
+  const [showCommandEdit, setShowCommandEdit] = useState(false);
 
   const eqDefs = useMemo(() => equippedDefs(state), [state]);
   const capacity = useMemo(() => getCapacityInfo(state), [state]);
@@ -55,10 +57,14 @@ export function PrepScreen() {
           <button className="btn btn--small btn--ghost" onClick={() => setShowGallery(true)} title="記録したキメラを見る">
             🏛️図鑑{chimeraGallery.length > 0 ? `(${chimeraGallery.length})` : ''}
           </button>
+          <button className="btn btn--small btn--ghost" onClick={() => setShowCommandEdit(true)} title="戦闘中に使うコマンドを編集する">
+            ⚡コマンド編集({state.commandLoadout.filter((f) => f).length}/4)
+          </button>
         </div>
       </header>
 
       {showGallery && <ChimeraGalleryModal onClose={() => setShowGallery(false)} />}
+      {showCommandEdit && <CommandEditModal onClose={() => setShowCommandEdit(false)} />}
 
       <div className="prep-layout">
         <div className="prep-col">

@@ -9,12 +9,33 @@ import {
   type CombatantModifiers,
   type OnHitEffect,
 } from './modifiers';
+import {
+  ALL_COMMANDS,
+  COMMAND_BALANCE,
+  resolveFamilyBestCommand,
+  type CommandCategory,
+  type CommandDef,
+} from '../data/commandDefs';
+import {
+  maxEffectValue,
+  regenMetabolism,
+  sumEffectValue,
+  tickActiveEffects,
+  tickCooldowns,
+  upsertEffect,
+  type ActiveCommandEffect,
+} from './commandEngine';
 
 export type SpeedSetting = 0 | 1 | 2 | 4;
 export type BattleStatus = 'ongoing' | 'won' | 'lost';
 
 const STATUS_TICK_INTERVAL = 1.0; // 毒・炎上の判定間隔（秒）
 const MIN_EFFECTIVE_INTERVAL = 0.15; // 高速化しすぎた場合の下限（無限ループ防止）
+
+// ダメージの発生源。コマンドシステムが無効な戦闘では常に'auto'扱いで、
+// 既存のstats.damageDealt集計や表示は一切変わらない(追加の内訳集計のみに使う)。
+type DamageSource = { kind: 'auto' | 'command' | 'status'; commandId?: string };
+const AUTO_SOURCE: DamageSource = { kind: 'auto' };
 
 interface RuntimePart {
   instanceId: string;
@@ -56,6 +77,9 @@ interface Combatant {
   isDead: boolean;
   stats: { damageDealt: number; healed: number; critCount: number };
   fixedDamageBonus: number; // 穿孔心臓等により戦闘中に成長する固定ダメージ加算値
+  // --- コマンドシステム(コマンド未使用の戦闘では常に空のまま。既存挙動に影響しない) ---
+  activeEffects: ActiveCommandEffect[];
+  shieldValue: number; // 脱皮などの一時障壁。HPより先に消費される
 }
 
 export interface PartSnapshot {
@@ -68,6 +92,13 @@ export interface PartSnapshot {
   cooldown: number;
   progress: number; // 0..1 次の発動までの進捗
   activations: number;
+}
+
+export interface ActiveEffectSnapshot {
+  key: string;
+  kind: string;
+  sourceName: string;
+  remaining: number;
 }
 
 export interface CombatantSnapshot {
@@ -84,6 +115,34 @@ export interface CombatantSnapshot {
   parts: PartSnapshot[];
   stats: { damageDealt: number; healed: number; critCount: number };
   isDead: boolean;
+  activeEffects: ActiveEffectSnapshot[];
+  shieldValue: number;
+}
+
+export interface CommandSlotSnapshot {
+  commandId: string;
+  familyId: string;
+  name: string;
+  description: string;
+  category: CommandCategory;
+  icon: string;
+  color: string;
+  metabolismCost: number;
+  cooldownSeconds: number;
+  cooldownRemaining: number;
+  affordable: boolean;
+  usable: boolean; // ゲージ・CD・戦闘状態・毒0での毒爆発封じ等をすべて考慮した「今押せるか」
+  reason?: string; // 押せない理由(押せる場合はundefined)
+}
+
+export interface BattleResultStatsSnapshot {
+  timeSeconds: number;
+  autoDamage: number;
+  commandDamage: number;
+  statusDamage: number;
+  healed: number;
+  maxSingleHit: number;
+  mostDamagingCommandName: string | null;
 }
 
 export interface BattleSnapshot {
@@ -95,6 +154,12 @@ export interface BattleSnapshot {
   enemy: CombatantSnapshot;
   log: string[];
   synergies: ActiveSynergies;
+  commandsEnabled: boolean;
+  metabolism: { current: number; max: number };
+  commandSlots: (CommandSlotSnapshot | null)[];
+  inputLockRemaining: number;
+  lastCommandEvent: { name: string; category: CommandCategory; time: number } | null;
+  resultStats: BattleResultStatsSnapshot;
 }
 
 export interface PlayerBattleSetup {
@@ -120,9 +185,37 @@ export class BattleEngine {
   private verbose: boolean;
   private listeners = new Set<() => void>();
 
-  constructor(setup: PlayerBattleSetup, enemyDef: EnemyDef, battleIndex: number, options: { verbose?: boolean } = {}) {
+  // --- コマンドシステム ---
+  private commandsEnabled = false;
+  private isBossTier = false;
+  private equippedCommands: (CommandDef | null)[] = [null, null, null, null];
+  private metabolism: number = COMMAND_BALANCE.metabolismStart;
+  private metabolismRegenPerSecondOverride: number | null = null; // TEST用
+  private metabolismHitRegenBudget: number = COMMAND_BALANCE.metabolismRegenPerHitCapPerSecond;
+  private metabolismHitRegenTimer = 0;
+  private commandCooldowns: Record<string, number> = {};
+  private commandInputLock = 0;
+  private inCommandExecution = false; // 再入防止(全器官解放などの自己再発動ガード)
+  private lastCommandEvent: { name: string; category: CommandCategory; time: number } | null = null;
+  private basePlayerPartCooldowns = new Map<string, number>(); // 攻撃速度バフの掛け直し用ベース値
+  private resultStats = {
+    autoDamage: 0,
+    commandDamage: 0,
+    statusDamage: 0,
+    healed: 0,
+    maxSingleHit: 0,
+    commandDamageByCommand: {} as Record<string, number>,
+  };
+
+  constructor(
+    setup: PlayerBattleSetup,
+    enemyDef: EnemyDef,
+    battleIndex: number,
+    options: { verbose?: boolean; commandFamilyIds?: (string | null)[] } = {}
+  ) {
     this.battleIndex = battleIndex;
     this.verbose = options.verbose ?? false;
+    this.isBossTier = enemyDef.tier === 'boss' || enemyDef.tier === 'miniboss';
 
     const equippedDefs = setup.equipped.map((e) => e.def);
     this.synergies = computeActiveSynergies(equippedDefs);
@@ -159,7 +252,10 @@ export class BattleEngine {
       isDead: false,
       stats: { damageDealt: 0, healed: 0, critCount: 0 },
       fixedDamageBonus: 0,
+      activeEffects: [],
+      shieldValue: 0,
     };
+    for (const p of playerParts) this.basePlayerPartCooldowns.set(p.instanceId, p.cooldown);
 
     const enemyMods: CombatantModifiers = emptyModifiers();
     const enemyParts: RuntimePart[] = enemyDef.moves
@@ -183,10 +279,23 @@ export class BattleEngine {
       isDead: false,
       stats: { damageDealt: 0, healed: 0, critCount: 0 },
       fixedDamageBonus: 0,
+      activeEffects: [],
+      shieldValue: 0,
     };
 
     this.pushLog(`戦闘開始: ${enemyDef.name} が現れた！`);
     if (this.player.defense > 0) this.pushLog(`キメラの防御が${this.player.defense}になった`);
+
+    // --- コマンドシステムの初期化(loadoutが与えられた場合のみ有効化) ---
+    const loadout = options.commandFamilyIds;
+    if (loadout && loadout.some((f) => f)) {
+      this.commandsEnabled = true;
+      this.equippedCommands = Array.from({ length: COMMAND_BALANCE.maxCommandSlots }, (_, i) => {
+        const familyId = loadout[i];
+        if (!familyId) return null;
+        return resolveFamilyBestCommand(familyId, equippedDefs);
+      });
+    }
   }
 
   private makeRuntimePart(
@@ -236,9 +345,17 @@ export class BattleEngine {
   }
 
   // ダメージを与える唯一の入口。復活判定もここで行う。
-  private dealDamage(target: Combatant, amount: number): number {
+  // sourceはコマンドシステムの内訳集計(オート/コマンド/状態異常)専用で、
+  // 省略時は既存呼び出し元と同じ'auto'として扱われ、挙動は一切変わらない。
+  private dealDamage(target: Combatant, amount: number, source: DamageSource = AUTO_SOURCE): number {
     if (target.isDead) return 0;
-    const applied = Math.max(0, Math.round(amount));
+    let applied = Math.max(0, Math.round(amount));
+    if (target.shieldValue > 0 && applied > 0) {
+      const absorbed = Math.min(target.shieldValue, applied);
+      target.shieldValue -= absorbed;
+      applied -= absorbed;
+      if (absorbed > 0) this.pushLog(`🛡️ ${target.name}の障壁が${absorbed}ダメージを吸収（残り${Math.round(target.shieldValue)}）`);
+    }
     target.hp -= applied;
     if (target.hp <= 0) {
       if (!target.reviveUsed && target.mods.reviveHpPct) {
@@ -251,17 +368,47 @@ export class BattleEngine {
         this.pushLog(`☠️ ${target.name}は倒れた`);
       }
     }
+    if (this.commandsEnabled && target === this.enemy && applied > 0) {
+      this.bucketResultDamage(source, applied);
+    }
     return applied;
+  }
+
+  private bucketResultDamage(source: DamageSource, applied: number) {
+    if (source.kind === 'auto') this.resultStats.autoDamage += applied;
+    else if (source.kind === 'status') this.resultStats.statusDamage += applied;
+    else if (source.kind === 'command') {
+      this.resultStats.commandDamage += applied;
+      if (source.commandId) {
+        this.resultStats.commandDamageByCommand[source.commandId] = (this.resultStats.commandDamageByCommand[source.commandId] ?? 0) + applied;
+      }
+    }
+    this.resultStats.maxSingleHit = Math.max(this.resultStats.maxSingleHit, applied);
   }
 
   private applyDefenseAndReduction(raw: number, defender: Combatant): number {
     let d = raw - defender.defense;
-    d = d * (1 - defender.damageReductionPct / 100);
+    const buffReductionPct = this.commandsEnabled ? maxEffectValue(defender.activeEffects, 'damage_reduction', 'reductionPct') : 0;
+    // 既存の軽減%とコマンドバフの軽減%は「加算」ではなく、それぞれ独立した乗算で合成する
+    // （複数の軽減源が単純加算で100%を超えて破綻しないようにするため）。
+    d = d * (1 - defender.damageReductionPct / 100) * (1 - buffReductionPct / 100);
+    if (this.commandsEnabled) {
+      const vulnerabilityPct = sumEffectValue(defender.activeEffects, 'vulnerability', 'vulnerabilityPct');
+      if (vulnerabilityPct > 0) d = d * (1 + vulnerabilityPct / 100);
+    }
     return Math.max(1, d);
   }
 
-  private resolveAttack(attacker: Combatant, defender: Combatant, part: RuntimePart, countTowardCombo: boolean) {
+  private resolveAttack(
+    attacker: Combatant,
+    defender: Combatant,
+    part: RuntimePart,
+    countTowardCombo: boolean,
+    source: DamageSource = AUTO_SOURCE,
+    chainDepth = 0
+  ) {
     if (defender.isDead || attacker.isDead) return;
+    if (chainDepth > COMMAND_BALANCE.maxChainDepth) return; // 連鎖深度の安全な上限
 
     if (countTowardCombo && part.type === 'arm') {
       attacker.attackCountByType.arm = (attacker.attackCountByType.arm ?? 0) + 1;
@@ -280,13 +427,16 @@ export class BattleEngine {
     if (defender.burn && attacker.mods.damageVsBurningMult !== 1) {
       rawDamage *= attacker.mods.damageVsBurningMult;
     }
-    const isCrit = attacker.mods.critChance > 0 && Math.random() < attacker.mods.critChance;
-    if (isCrit) rawDamage *= attacker.mods.critMultiplier;
+    const critChanceBonus = this.commandsEnabled && attacker === this.player ? sumEffectValue(attacker.activeEffects, 'crit', 'critChancePctAdd') / 100 : 0;
+    const critMultBonus = this.commandsEnabled && attacker === this.player ? sumEffectValue(attacker.activeEffects, 'crit', 'critMultAdd') : 0;
+    const isCrit = attacker.mods.critChance + critChanceBonus > 0 && Math.random() < attacker.mods.critChance + critChanceBonus;
+    if (isCrit) rawDamage *= attacker.mods.critMultiplier + critMultBonus;
     if (attacker.mods.finalDamageMult !== 1) rawDamage *= attacker.mods.finalDamageMult;
     const finalDamage = this.applyDefenseAndReduction(rawDamage, defender);
-    const applied = this.dealDamage(defender, finalDamage);
+    const applied = this.dealDamage(defender, finalDamage, source);
     attacker.stats.damageDealt += applied;
     if (isCrit) attacker.stats.critCount += 1;
+    if (this.commandsEnabled && attacker === this.player && applied > 0) this.gainOnHitMetabolism();
     if (this.verbose) {
       this.pushLog(
         `${attacker.name}の${part.icon}${part.name}: 基礎${Math.round(rawDamage)}${isCrit ? '(会心)' : ''} → 防御${defender.defense}/軽減${defender.damageReductionPct}% 適用後 ${applied}`
@@ -297,20 +447,37 @@ export class BattleEngine {
       this.pushLog(`${attacker.name}の${part.icon}${part.name}が${defender.name}に${applied}ダメージ`);
     }
 
+    // 反射甲殻(コマンドバフ): 被弾側(defender)が反射を持っていれば、軽減前ダメージの一部を跳ね返す。
+    // dealDamageを直接呼ぶだけでresolveAttackを再帰しないため、反射から反射は発生しない。
+    if (this.commandsEnabled && applied > 0 && !defender.isDead && !attacker.isDead) {
+      const reflectPct = maxEffectValue(defender.activeEffects, 'reflect', 'reflectPct');
+      if (reflectPct > 0) {
+        const reflectAmount = Math.max(0, Math.round(rawDamage * (reflectPct / 100)));
+        if (reflectAmount > 0) {
+          const dealt = this.dealDamage(attacker, reflectAmount, { kind: 'command' });
+          this.pushLog(`🪞 ${defender.name}の反射甲殻！${attacker.name}に${dealt}ダメージ`);
+        }
+      }
+    }
+
     if (defender.isDead) return;
 
-    // 命中に付随する効果（自身の効果 + オーラ効果）
+    // 命中に付随する効果（自身の効果 + オーラ効果 + 毒液分泌バフ）
     const onHit: OnHitEffect[] = [];
     for (const e of part.effects) {
       if (e.kind === 'apply_poison' || e.kind === 'apply_burn') onHit.push(e);
     }
     const aura = attacker.mods.auraOnHitByType[part.type];
     if (aura) onHit.push(...aura);
+    if (this.commandsEnabled && attacker === this.player && part.type === 'arm') {
+      const venomPerHit = sumEffectValue(attacker.activeEffects, 'poison_on_hit', 'amount');
+      if (venomPerHit > 0) onHit.push({ kind: 'apply_poison', amount: venomPerHit });
+    }
     for (const e of onHit) this.applyOnHitEffect(attacker, defender, e);
 
     // 被弾側の反撃
     if (defender.mods.counterDamage > 0 && !defender.isDead) {
-      const cdmg = this.dealDamage(attacker, defender.mods.counterDamage);
+      const cdmg = this.dealDamage(attacker, defender.mods.counterDamage, source);
       defender.stats.damageDealt += cdmg;
       this.pushLog(`🔁 ${defender.name}の反撃！${attacker.name}に${cdmg}ダメージ`);
     }
@@ -325,7 +492,7 @@ export class BattleEngine {
         if (count > 0 && count % proc.every === 0) {
           this.pushLog(`⚡ ${attacker.name}のコンボ発動！全ての腕・触手が追加攻撃`);
           for (const armPart of attacker.parts.filter((p) => p.type === 'arm')) {
-            this.resolveAttack(attacker, defender, armPart, false);
+            this.resolveAttack(attacker, defender, armPart, false, source, chainDepth + 1);
             if (defender.isDead || attacker.isDead) return;
           }
         }
@@ -338,7 +505,7 @@ export class BattleEngine {
           if (others.length > 0) {
             const extra = others[Math.floor(Math.random() * others.length)];
             this.pushLog(`✨ ${attacker.name}の追撃！`);
-            this.resolveAttack(attacker, defender, extra, false);
+            this.resolveAttack(attacker, defender, extra, false, source, chainDepth + 1);
           }
         }
       }
@@ -369,7 +536,7 @@ export class BattleEngine {
 
   // パッシブ部位の効果を1回分適用する（heal_tick / fixed_damage_tick）。
   // 通常発動と「頭・口・目5個シナジー」等による連続発動の両方から呼ばれる共通処理。
-  private applyPassiveEffectsOnce(attacker: Combatant, defender: Combatant, part: RuntimePart) {
+  private applyPassiveEffectsOnce(attacker: Combatant, defender: Combatant, part: RuntimePart, source: DamageSource = AUTO_SOURCE) {
     for (const e of part.effects) {
       if (e.kind === 'heal_tick') {
         const base = e.isPercent ? attacker.maxHp * (e.amount / 100) : e.amount;
@@ -378,12 +545,13 @@ export class BattleEngine {
         attacker.hp = Math.min(attacker.maxHp, attacker.hp + amount);
         const healed = attacker.hp - before;
         attacker.stats.healed += healed;
+        if (this.commandsEnabled && attacker === this.player) this.resultStats.healed += healed;
         if (healed > 0) this.pushLog(`💚 ${attacker.name}の${part.icon}${part.name}がHP${healed}回復`);
       } else if (e.kind === 'fixed_damage_tick') {
         if (defender.isDead) continue;
         // 固定ダメージ: 防御・被ダメージ軽減を無視する別ダメージ種
         const amount = e.amount + attacker.fixedDamageBonus;
-        const applied = this.dealDamage(defender, amount);
+        const applied = this.dealDamage(defender, amount, source);
         attacker.stats.damageDealt += applied;
         this.pushLog(`🦴 ${attacker.name}の${part.icon}${part.name}が${defender.name}に固定${applied}ダメージ`);
         if (attacker.mods.fixedDamageGrowthPerProc > 0) {
@@ -415,9 +583,11 @@ export class BattleEngine {
   }
 
   private tickStatusFor(c: Combatant) {
+    // sourceは'status'固定。dealDamage側でtarget===enemyの時だけ集計されるため、
+    // プレイヤーが受けた状態異常ダメージ(c===player)は内訳集計に混ざらない。
     if (c.poison.value > 0 && !c.isDead) {
       const dmg = c.poison.value;
-      const applied = this.dealDamage(c, dmg);
+      const applied = this.dealDamage(c, dmg, { kind: 'status' });
       this.pushLog(`☠️ ${c.name}は毒で${applied}ダメージ`);
       const skipDecay = Math.random() < c.poison.noDecayChance;
       if (!skipDecay) {
@@ -429,11 +599,15 @@ export class BattleEngine {
       }
     }
     if (c.burn && !c.isDead) {
-      const applied = this.dealDamage(c, c.burn.dps);
+      const applied = this.dealDamage(c, c.burn.dps, { kind: 'status' });
       this.pushLog(`🔥 ${c.name}は炎上で${applied}ダメージ`);
       c.burn.timeLeft -= STATUS_TICK_INTERVAL;
       if (c.burn.timeLeft <= 0) c.burn = null;
     }
+  }
+
+  private isStunned(c: Combatant): boolean {
+    return this.commandsEnabled && c.activeEffects.some((e) => e.kind === 'stun');
   }
 
   tick(rawDt: number) {
@@ -442,11 +616,14 @@ export class BattleEngine {
     const dt = Math.min(0.25, rawDt) * this.speed;
     this.time += dt;
 
+    if (this.commandsEnabled) this.tickCommandSystem(dt);
+
     for (const [attacker, defender] of [
       [this.player, this.enemy],
       [this.enemy, this.player],
     ] as [Combatant, Combatant][]) {
       if (attacker.isDead) continue;
+      if (attacker.side === 'enemy' && this.isStunned(attacker)) continue; // 神経麻痺: 敵の自動攻撃処理を丸ごと止める
       for (const part of attacker.parts) {
         part.timer += dt;
         let guard = 0;
@@ -471,6 +648,64 @@ export class BattleEngine {
     this.checkEnd();
   }
 
+  // --- コマンドシステムの毎フレーム更新(代謝ゲージ・クールダウン・バフデバフ) ---
+  private tickCommandSystem(dt: number) {
+    const regenPerSecond = this.metabolismRegenPerSecondOverride ?? COMMAND_BALANCE.metabolismRegenPerSecond;
+    this.metabolism = regenMetabolism(this.metabolism, COMMAND_BALANCE.metabolismMax, regenPerSecond * dt);
+
+    this.metabolismHitRegenTimer += dt;
+    while (this.metabolismHitRegenTimer >= 1) {
+      this.metabolismHitRegenTimer -= 1;
+      this.metabolismHitRegenBudget = COMMAND_BALANCE.metabolismRegenPerHitCapPerSecond;
+    }
+
+    this.commandCooldowns = tickCooldowns(this.commandCooldowns, dt);
+    this.commandInputLock = Math.max(0, this.commandInputLock - dt);
+
+    const hadPlayerSpeedBuff = sumEffectValue(this.player.activeEffects, 'attack_speed', 'pct') > 0;
+    this.player.activeEffects = tickActiveEffects(this.player.activeEffects, dt);
+    this.enemy.activeEffects = tickActiveEffects(this.enemy.activeEffects, dt);
+    const hasPlayerSpeedBuffNow = sumEffectValue(this.player.activeEffects, 'attack_speed', 'pct') > 0;
+    if (hadPlayerSpeedBuff !== hasPlayerSpeedBuffNow) this.recomputePlayerPartCooldowns();
+
+    // 持続回復(多重鼓動・竜脈再生)
+    for (const e of this.player.activeEffects) {
+      if (e.kind === 'heal_over_time' && e.values.pctPerSec) {
+        this.healPlayer(this.player.maxHp * (e.values.pctPerSec / 100) * dt, false);
+      }
+    }
+  }
+
+  private gainOnHitMetabolism() {
+    if (this.metabolismHitRegenBudget <= 0) return;
+    const grant = Math.min(COMMAND_BALANCE.metabolismRegenPerHit, this.metabolismHitRegenBudget);
+    this.metabolism = regenMetabolism(this.metabolism, COMMAND_BALANCE.metabolismMax, grant);
+    this.metabolismHitRegenBudget -= grant;
+  }
+
+  // 攻撃速度バフの開始/終了時に、装着部位の実効クールダウンを掛け直す。
+  // ベース値(静的シナジー込み)は基準に保持しておき、バフ分だけ追加で乗算する。
+  private recomputePlayerPartCooldowns() {
+    const buffPct = sumEffectValue(this.player.activeEffects, 'attack_speed', 'pct');
+    const mult = Math.max(0.2, 1 + buffPct / 100);
+    for (const part of this.player.parts) {
+      const base = this.basePlayerPartCooldowns.get(part.instanceId) ?? part.cooldown;
+      part.cooldown = Math.max(MIN_EFFECTIVE_INTERVAL, base / mult);
+    }
+  }
+
+  // プレイヤーのHPを回復する共通処理(ログ・statsの二重管理を避けるための唯一の入口)。
+  // logをtrueにすると即時回復として1行ログを出す(継続回復は毎フレーム呼ばれるため既定でログを出さない)。
+  private healPlayer(amount: number, log = true) {
+    if (amount <= 0) return;
+    const before = this.player.hp;
+    this.player.hp = Math.min(this.player.maxHp, this.player.hp + amount);
+    const healed = this.player.hp - before;
+    this.player.stats.healed += healed;
+    if (this.commandsEnabled) this.resultStats.healed += healed;
+    if (log && healed > 0) this.pushLog(`💚 ${Math.round(healed)}回復`);
+  }
+
   private checkEnd(): boolean {
     if (this.status !== 'ongoing') return true;
     if (this.player.isDead || this.player.hp <= 0) {
@@ -488,24 +723,11 @@ export class BattleEngine {
     return false;
   }
 
-  // --- デバッグ用 ---
-  debugKillEnemy() {
-    this.dealDamage(this.enemy, this.enemy.hp + 9999);
-    this.checkEnd();
-    this.notify();
-  }
-
-  debugFullHeal() {
-    this.player.hp = this.player.maxHp;
-    this.enemy.hp = this.enemy.maxHp;
-    this.notify();
-  }
-
   private snapshotOf(c: Combatant): CombatantSnapshot {
     return {
       side: c.side,
       name: c.name,
-      hp: c.hp,
+      hp: Math.round(c.hp),
       maxHp: c.maxHp,
       defense: c.defense,
       damageReductionPct: c.damageReductionPct,
@@ -524,8 +746,57 @@ export class BattleEngine {
         progress: Math.min(1, p.timer / p.cooldown),
         activations: p.activations,
       })),
-      stats: { ...c.stats },
+      stats: { damageDealt: Math.round(c.stats.damageDealt), healed: Math.round(c.stats.healed), critCount: c.stats.critCount },
       isDead: c.isDead,
+      activeEffects: c.activeEffects.map((e) => ({ key: e.key, kind: e.kind, sourceName: e.sourceName, remaining: Math.max(0, Math.round(e.remaining * 10) / 10) })),
+      shieldValue: Math.round(c.shieldValue),
+    };
+  }
+
+  private commandSlotSnapshot(cmd: CommandDef | null): CommandSlotSnapshot | null {
+    if (!cmd) return null;
+    const cooldownRemaining = this.commandCooldowns[cmd.commandId] ?? 0;
+    const affordable = this.metabolism >= cmd.metabolismCost;
+    let reason: string | undefined;
+    if (this.status !== 'ongoing') reason = '戦闘は終了しています';
+    else if (this.commandInputLock > 0) reason = '入力ロック中';
+    else if (cooldownRemaining > 0) reason = `クールダウン中（残り${Math.ceil(cooldownRemaining)}秒）`;
+    else if (!affordable) reason = `代謝ゲージ不足（必要${cmd.metabolismCost}）`;
+    else if ((cmd.effectId === 'poison_burst' || cmd.effectId === 'plague_burst') && this.enemy.poison.value <= 0) reason = '敵に毒が付与されていません';
+    return {
+      commandId: cmd.commandId,
+      familyId: cmd.familyId,
+      name: cmd.name,
+      description: cmd.description,
+      category: cmd.category,
+      icon: cmd.icon,
+      color: cmd.color,
+      metabolismCost: cmd.metabolismCost,
+      cooldownSeconds: cmd.cooldownSeconds,
+      cooldownRemaining: Math.max(0, Math.round(cooldownRemaining * 10) / 10),
+      affordable,
+      usable: !reason,
+      reason,
+    };
+  }
+
+  private resultStatsSnapshot(): BattleResultStatsSnapshot {
+    let mostDamagingCommandName: string | null = null;
+    let best = 0;
+    for (const [commandId, dmg] of Object.entries(this.resultStats.commandDamageByCommand)) {
+      if (dmg > best) {
+        best = dmg;
+        mostDamagingCommandName = ALL_COMMANDS.find((c) => c.commandId === commandId)?.name ?? commandId;
+      }
+    }
+    return {
+      timeSeconds: Math.round(this.time * 10) / 10,
+      autoDamage: Math.round(this.resultStats.autoDamage),
+      commandDamage: Math.round(this.resultStats.commandDamage),
+      statusDamage: Math.round(this.resultStats.statusDamage),
+      healed: Math.round(this.resultStats.healed),
+      maxSingleHit: Math.round(this.resultStats.maxSingleHit),
+      mostDamagingCommandName,
     };
   }
 
@@ -539,6 +810,347 @@ export class BattleEngine {
       enemy: this.snapshotOf(this.enemy),
       log: this.log.slice(0, 40),
       synergies: this.synergies,
+      commandsEnabled: this.commandsEnabled,
+      metabolism: { current: Math.round(this.metabolism), max: COMMAND_BALANCE.metabolismMax },
+      commandSlots: this.equippedCommands.map((c) => this.commandSlotSnapshot(c)),
+      inputLockRemaining: Math.max(0, Math.round(this.commandInputLock * 100) / 100),
+      lastCommandEvent: this.lastCommandEvent,
+      resultStats: this.resultStatsSnapshot(),
     };
+  }
+
+  // ============================================================
+  // コマンド発動
+  // ============================================================
+  useCommand(slotIndex: number): { ok: boolean; reason?: string } {
+    if (!this.commandsEnabled) return { ok: false, reason: 'この戦闘ではコマンドは有効化されていません' };
+    if (this.status !== 'ongoing') return { ok: false, reason: '戦闘は終了しています' };
+    if (this.inCommandExecution) return { ok: false, reason: '処理中です' };
+    if (this.commandInputLock > 0) return { ok: false, reason: '入力ロック中（二重発動防止）' };
+    const cmd = this.equippedCommands[slotIndex];
+    if (!cmd) return { ok: false, reason: 'この枠にはコマンドが装備されていません' };
+    const cooldownLeft = this.commandCooldowns[cmd.commandId] ?? 0;
+    if (cooldownLeft > 0) return { ok: false, reason: `クールダウン中（残り${Math.ceil(cooldownLeft)}秒）` };
+    if (this.metabolism < cmd.metabolismCost) {
+      return { ok: false, reason: `代謝ゲージが足りません（必要${cmd.metabolismCost} / 現在${Math.floor(this.metabolism)}）` };
+    }
+    if ((cmd.effectId === 'poison_burst' || cmd.effectId === 'plague_burst') && this.enemy.poison.value <= 0) {
+      return { ok: false, reason: '敵に毒が付与されていません' };
+    }
+
+    this.metabolism -= cmd.metabolismCost;
+    this.commandCooldowns[cmd.commandId] = cmd.cooldownSeconds;
+    this.commandInputLock = COMMAND_BALANCE.commandInputLockSeconds;
+    this.lastCommandEvent = { name: cmd.name, category: cmd.category, time: this.time };
+    this.pushLog(`⚡[コマンド] ${cmd.name}を発動！`);
+
+    this.inCommandExecution = true;
+    try {
+      this.executeCommandEffect(cmd);
+    } finally {
+      this.inCommandExecution = false;
+    }
+    this.checkEnd();
+    this.notify();
+    return { ok: true };
+  }
+
+  private vulnerabilityMultiplier(defender: Combatant): number {
+    if (!this.commandsEnabled) return 1;
+    const pct = sumEffectValue(defender.activeEffects, 'vulnerability', 'vulnerabilityPct');
+    return pct > 0 ? 1 + pct / 100 : 1;
+  }
+
+  private executeCommandEffect(cmd: CommandDef) {
+    const v = cmd.effectValues;
+    const src: DamageSource = { kind: 'command', commandId: cmd.commandId };
+
+    switch (cmd.effectId) {
+      case 'strike_best': {
+        const best = this.player.parts
+          .filter((p) => p.attack > 0)
+          .reduce<RuntimePart | null>((a, b) => (!a || b.attack > a.attack ? b : a), null);
+        if (best) {
+          this.resolveAttack(this.player, this.enemy, best, false, src);
+        } else {
+          const dmg = v.fallbackDamage * this.vulnerabilityMultiplier(this.enemy);
+          const applied = this.dealDamage(this.enemy, dmg, src);
+          this.player.stats.damageDealt += applied;
+          this.pushLog(`👊 強打！${applied}ダメージ`);
+        }
+        break;
+      }
+      case 'guard_reduce': {
+        this.player.activeEffects = upsertEffect(this.player.activeEffects, {
+          key: 'guard_reduction',
+          kind: 'damage_reduction',
+          sourceCommandId: cmd.commandId,
+          sourceName: cmd.name,
+          remaining: v.durationSec,
+          values: { reductionPct: v.reductionPct },
+        });
+        break;
+      }
+      case 'emergency_regen': {
+        this.healPlayer(this.player.maxHp * (v.healPctOfMax / 100));
+        break;
+      }
+      case 'all_arms_volley':
+      case 'hundred_arms_barrage': {
+        const attackParts = [...this.player.parts.filter((p) => p.attack > 0)];
+        const powerMult = v.powerPct / 100;
+        for (let hit = 0; hit < v.hits; hit++) {
+          for (const part of attackParts) {
+            if (this.enemy.isDead || this.player.isDead) break;
+            const scaled: RuntimePart = { ...part, attack: part.attack * powerMult };
+            this.resolveAttack(this.player, this.enemy, scaled, false, src, 1);
+          }
+          if (this.enemy.isDead || this.player.isDead) break;
+        }
+        break;
+      }
+      case 'bone_spear': {
+        const applied = this.dealDamage(this.enemy, v.fixedDamage, src);
+        this.player.stats.damageDealt += applied;
+        this.pushLog(`🦴 骨槍！防御無視の固定${applied}ダメージ`);
+        break;
+      }
+      case 'predation_bite': {
+        const dmg = v.damage * this.vulnerabilityMultiplier(this.enemy);
+        const applied = this.dealDamage(this.enemy, dmg, src);
+        this.player.stats.damageDealt += applied;
+        this.healPlayer(applied * (v.lifestealPct / 100));
+        this.pushLog(`🩸 捕食咬み！${applied}ダメージ`);
+        break;
+      }
+      case 'flame_bolt':
+      case 'hell_flame_bolt': {
+        let dmg = v.damage;
+        if (v.bonusIfBurningPct > 0 && this.enemy.burn) dmg *= 1 + v.bonusIfBurningPct / 100;
+        dmg *= this.vulnerabilityMultiplier(this.enemy);
+        const applied = this.dealDamage(this.enemy, dmg, src);
+        this.player.stats.damageDealt += applied;
+        if (!this.enemy.burn) this.enemy.burn = { dps: v.burnDps, timeLeft: v.burnDuration };
+        else {
+          this.enemy.burn.dps += v.burnDps;
+          this.enemy.burn.timeLeft = Math.max(this.enemy.burn.timeLeft, v.burnDuration);
+        }
+        this.pushLog(`🔥 ${cmd.name}！${applied}ダメージ＋炎上`);
+        break;
+      }
+      case 'poison_burst':
+      case 'plague_burst': {
+        const current = this.enemy.poison.value;
+        const consumed = cmd.effectId === 'poison_burst' ? Math.min(current, v.maxConsume) : Math.round(current * v.consumeFraction);
+        this.enemy.poison.value = Math.max(0, current - consumed);
+        const dmg = consumed * v.damagePerPoison * this.vulnerabilityMultiplier(this.enemy);
+        const applied = this.dealDamage(this.enemy, dmg, src);
+        this.player.stats.damageDealt += applied;
+        this.pushLog(`☠️💥 ${cmd.name}！毒${consumed}を消費し${applied}ダメージ`);
+        break;
+      }
+      case 'mana_cannon': {
+        const reducedDefense = this.enemy.defense * (1 - v.defenseIgnorePct / 100);
+        let d = v.damage - reducedDefense;
+        d = d * (1 - this.enemy.damageReductionPct / 100) * this.vulnerabilityMultiplier(this.enemy);
+        d = Math.max(1, d);
+        const applied = this.dealDamage(this.enemy, d, src);
+        this.player.stats.damageDealt += applied;
+        this.pushLog(`🔮 魔力砲！${applied}ダメージ`);
+        break;
+      }
+      case 'frenzy_buff': {
+        this.player.activeEffects = upsertEffect(this.player.activeEffects, {
+          key: 'attack_speed_frenzy',
+          kind: 'attack_speed',
+          sourceCommandId: cmd.commandId,
+          sourceName: cmd.name,
+          remaining: v.durationSec,
+          values: { pct: v.attackSpeedPct },
+        });
+        this.recomputePlayerPartCooldowns();
+        break;
+      }
+      case 'eye_focus_buff': {
+        this.player.activeEffects = upsertEffect(this.player.activeEffects, {
+          key: 'crit_focus',
+          kind: 'crit',
+          sourceCommandId: cmd.commandId,
+          sourceName: cmd.name,
+          remaining: v.durationSec,
+          values: { critChancePctAdd: v.critChancePctAdd, critMultAdd: v.critMultAdd },
+        });
+        break;
+      }
+      case 'venom_secretion_buff': {
+        this.player.activeEffects = upsertEffect(this.player.activeEffects, {
+          key: 'venom_secretion',
+          kind: 'poison_on_hit',
+          sourceCommandId: cmd.commandId,
+          sourceName: cmd.name,
+          remaining: v.durationSec,
+          values: { amount: v.poisonPerArmHit },
+        });
+        break;
+      }
+      case 'harden_buff':
+      case 'reflect_shell_buff': {
+        this.player.activeEffects = upsertEffect(this.player.activeEffects, {
+          key: 'harden_reduction',
+          kind: 'damage_reduction',
+          sourceCommandId: cmd.commandId,
+          sourceName: cmd.name,
+          remaining: v.durationSec,
+          values: { reductionPct: v.reductionPct },
+        });
+        if (cmd.effectId === 'reflect_shell_buff') {
+          this.player.activeEffects = upsertEffect(this.player.activeEffects, {
+            key: 'harden_reflect',
+            kind: 'reflect',
+            sourceCommandId: cmd.commandId,
+            sourceName: cmd.name,
+            remaining: v.durationSec,
+            values: { reflectPct: v.reflectPct },
+          });
+        }
+        break;
+      }
+      case 'shell_break_debuff':
+      case 'predator_mark_debuff': {
+        this.enemy.activeEffects = upsertEffect(this.enemy.activeEffects, {
+          key: 'vulnerability',
+          kind: 'vulnerability',
+          sourceCommandId: cmd.commandId,
+          sourceName: cmd.name,
+          remaining: v.durationSec,
+          values: { vulnerabilityPct: v.vulnerabilityPct },
+        });
+        break;
+      }
+      case 'paralysis_debuff': {
+        const dur = this.isBossTier ? v.durationSec * (v.bossDurationMultPct / 100) : v.durationSec;
+        this.enemy.activeEffects = upsertEffect(this.enemy.activeEffects, {
+          key: 'stun',
+          kind: 'stun',
+          sourceCommandId: cmd.commandId,
+          sourceName: cmd.name,
+          remaining: dur,
+          values: {},
+        });
+        this.pushLog(`🕸️ 神経麻痺！${this.enemy.name}の行動を${Math.round(dur * 10) / 10}秒停止`);
+        break;
+      }
+      case 'heartbeat_heal':
+      case 'dragon_vein_heal': {
+        this.healPlayer(this.player.maxHp * (v.instantPct / 100));
+        this.player.activeEffects = upsertEffect(this.player.activeEffects, {
+          key: 'heal_over_time',
+          kind: 'heal_over_time',
+          sourceCommandId: cmd.commandId,
+          sourceName: cmd.name,
+          remaining: v.durationSec,
+          values: { pctPerSec: v.tickPctPerSec },
+        });
+        if (cmd.effectId === 'dragon_vein_heal' && v.attackSpeedBuffPct) {
+          this.player.activeEffects = upsertEffect(this.player.activeEffects, {
+            key: 'attack_speed_dragon_vein',
+            kind: 'attack_speed',
+            sourceCommandId: cmd.commandId,
+            sourceName: cmd.name,
+            remaining: v.durationSec,
+            values: { pct: v.attackSpeedBuffPct },
+          });
+          this.recomputePlayerPartCooldowns();
+        }
+        break;
+      }
+      case 'molt_cleanse': {
+        this.player.poison = { value: 0, noDecayChance: 0 };
+        this.player.burn = null;
+        this.player.shieldValue += this.player.maxHp * (v.shieldPct / 100);
+        this.pushLog(`🐍 脱皮！毒と炎上を解除し、障壁${Math.round(this.player.maxHp * (v.shieldPct / 100))}を展開した`);
+        break;
+      }
+      case 'full_organ_release': {
+        const attackParts = [...this.player.parts.filter((p) => p.attack > 0)];
+        for (const part of attackParts) {
+          if (this.enemy.isDead) break;
+          this.resolveAttack(this.player, this.enemy, part, false, src, 1);
+        }
+        if (!this.enemy.isDead) {
+          // 周期器官(パッシブ: 回復・固定ダメージ)を1回ずつ発動する。
+          // 全器官解放自身はコマンドでありパッシブ部位ではないため、この一覧には含まれ得ない
+          // (=構造的に自己再発動しない)。
+          for (const part of this.player.parts.filter((p) => p.attack === 0)) {
+            this.applyPassiveEffectsOnce(this.player, this.enemy, part, src);
+          }
+        }
+        const selfDamage = this.player.maxHp * (v.selfDamagePctOfMax / 100);
+        this.player.hp = Math.max(1, this.player.hp - selfDamage);
+        this.pushLog(`💢 全器官解放の代償で自身に${Math.round(selfDamage)}ダメージ（HP1は残る）`);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  // --- デバッグ用 ---
+  debugKillEnemy() {
+    this.dealDamage(this.enemy, this.enemy.hp + 9999);
+    this.checkEnd();
+    this.notify();
+  }
+
+  debugFullHeal() {
+    this.player.hp = this.player.maxHp;
+    this.enemy.hp = this.enemy.maxHp;
+    this.notify();
+  }
+
+  // --- コマンドシステムTEST用デバッグ操作 ---
+  debugSetMetabolism(value: number) {
+    this.metabolism = Math.max(0, Math.min(COMMAND_BALANCE.metabolismMax, value));
+    this.notify();
+  }
+
+  debugSetMetabolismRegenPerSecond(value: number | null) {
+    this.metabolismRegenPerSecondOverride = value;
+    this.notify();
+  }
+
+  debugResetCommandCooldowns() {
+    this.commandCooldowns = {};
+    this.commandInputLock = 0;
+    this.notify();
+  }
+
+  // 条件を無視してこの枠へ強制的にコマンドを装備する(TEST専用。戦闘中の一時的な検証用)。
+  debugForceUnlockCommand(slotIndex: number, commandId: string) {
+    if (slotIndex < 0 || slotIndex >= this.equippedCommands.length) return;
+    const cmd = ALL_COMMANDS.find((c) => c.commandId === commandId) ?? null;
+    this.equippedCommands[slotIndex] = cmd;
+    this.notify();
+  }
+
+  debugSetHp(side: 'player' | 'enemy', value: number) {
+    const c = side === 'player' ? this.player : this.enemy;
+    c.hp = Math.max(0, Math.min(c.maxHp, value));
+    this.checkEnd();
+    this.notify();
+  }
+
+  debugSetEnemyAttackMult(mult: number) {
+    for (const part of this.enemy.parts) part.attack = part.attack * mult;
+    this.notify();
+  }
+
+  debugResetResultStats() {
+    this.resultStats = { autoDamage: 0, commandDamage: 0, statusDamage: 0, healed: 0, maxSingleHit: 0, commandDamageByCommand: {} };
+    this.notify();
+  }
+
+  isCommandsEnabled(): boolean {
+    return this.commandsEnabled;
   }
 }

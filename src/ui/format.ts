@@ -48,3 +48,11 @@ export function formatPct(v: number): string {
   const sign = v > 0 ? '+' : '';
   return `${sign}${v}%`;
 }
+
+// インフレ確認用の大きな数値表記(K/M)。戦闘結果の内訳表示で使用する。
+export function formatBigNumber(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
+  if (abs >= 1_000) return `${(v / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}K`;
+  return `${Math.round(v)}`;
+}
