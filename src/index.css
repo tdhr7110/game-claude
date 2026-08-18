@@ -1,21 +1,84 @@
+/* ============================================================
+   TEST4 デザインシステム
+   「ポップ × モンスター × キメラ × 少しダーク」
+   色・角丸・余白をCSS変数に集約し、以降の調整をしやすくする。
+   ============================================================ */
 :root {
   color-scheme: dark;
-  --bg: #0f0a14;
-  --bg-panel: #1a1420;
-  --bg-panel-2: #221a2b;
-  --border: #3a2d47;
-  --text: #f1e9f7;
-  --text-muted: #9c8ba8;
-  --accent: #a855f7;
-  --accent-2: #f472b6;
-  --danger: #f87171;
-  --success: #4ade80;
-  --warn: #facc15;
-  font-family: 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+
+  /* --- ベースカラー（ネイビー〜濃い紫の背景） --- */
+  --color-bg: #150f24;
+  --color-bg-2: #1c1330;
+  --color-panel: #221a3a;
+  --color-panel-2: #2b2148;
+  --color-border: #3d3163;
+  --color-border-soft: rgba(255, 255, 255, 0.08);
+
+  /* --- テキスト --- */
+  --color-text: #f4eefc;
+  --color-text-muted: #a99cc4;
+  --color-text-dim: #7c6f99;
+
+  /* --- アクセント（紫・ピンク・水色・ミント・黄色） --- */
+  --color-primary: #a855f7;
+  --color-primary-2: #7c3aed;
+  --color-secondary: #f472b6;
+  --color-cyan: #38dbf0;
+  --color-mint: #4ade80;
+  --color-yellow: #fbbf24;
+
+  --color-success: #4ade80;
+  --color-danger: #f8617a;
+  --color-warn: #fbbf24;
+
+  /* --- レアリティ --- */
+  --rarity-common: #9ca3af;
+  --rarity-common-glow: rgba(156, 163, 175, 0.35);
+  --rarity-uncommon: #38dbf0;
+  --rarity-uncommon-glow: rgba(56, 219, 240, 0.45);
+  --rarity-rare: #d879f7;
+  --rarity-rare-glow: rgba(216, 121, 247, 0.55);
+
+  /* --- 角丸 --- */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  /* --- 余白 --- */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 14px;
+  --spacing-lg: 22px;
+  --spacing-xl: 32px;
+
+  /* --- 影 --- */
+  --shadow-card: 0 6px 18px rgba(8, 4, 20, 0.45);
+  --shadow-pop: 0 10px 26px rgba(8, 4, 20, 0.55);
+
+  /* --- フォント（丸みのある和文フォントを優先、外部依存は追加しない） --- */
+  --font-title: 'Zen Maru Gothic', 'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN', 'Hiragino Sans', 'Yu Gothic', 'Segoe UI', sans-serif;
+  --font-body: 'Hiragino Maru Gothic ProN', 'M PLUS Rounded 1c', 'Hiragino Sans', 'Yu Gothic', 'Segoe UI', sans-serif;
+
+  /* --- 旧変数名エイリアス（管理画面など未移行の箇所の後方互換） --- */
+  --bg: var(--color-bg);
+  --bg-panel: var(--color-panel);
+  --bg-panel-2: var(--color-panel-2);
+  --border: var(--color-border);
+  --text: var(--color-text);
+  --text-muted: var(--color-text-muted);
+  --accent: var(--color-primary);
+  --accent-2: var(--color-secondary);
+  --danger: var(--color-danger);
+  --success: var(--color-success);
+  --warn: var(--color-warn);
+
+  font-family: var(--font-body);
 }
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -25,14 +88,26 @@ body,
   margin: 0;
 }
 
+html {
+  /* Safariのアドレスバー等による100vh崩れを避け、動的ビューポート単位を優先する */
+  height: 100dvh;
+}
+
 body {
-  background: radial-gradient(circle at 20% 0%, #24172f 0%, var(--bg) 60%);
-  color: var(--text);
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 18% -10%, rgba(168, 85, 247, 0.22) 0%, transparent 45%),
+    radial-gradient(circle at 100% 0%, rgba(56, 219, 240, 0.12) 0%, transparent 40%),
+    var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  overscroll-behavior-y: none;
 }
 
 button,
 select,
-input {
+input,
+textarea {
   font-family: inherit;
   color: inherit;
 }
@@ -41,123 +116,196 @@ h1,
 h2,
 h3 {
   margin: 0.3em 0;
+  font-family: var(--font-title);
+}
+
+p {
+  line-height: 1.55;
 }
 
 .app-root {
-  min-height: 100vh;
-  padding: 12px 20px 20px;
+  min-height: 100dvh;
+  padding: env(safe-area-inset-top, 0px) calc(env(safe-area-inset-right, 0px) + 12px) env(safe-area-inset-bottom, 0px)
+    calc(env(safe-area-inset-left, 0px) + 12px);
+  display: flex;
+  flex-direction: column;
 }
 
+/* ゲーム画面は常に「縦長スマホ画面」を中心に据える。PCブラウザでは中央寄せの
+   縦長カラムとして表示し、横画面レイアウトへは戻さない。 */
 .screen {
-  max-width: 1400px;
+  max-width: 520px;
+  width: 100%;
   margin: 0 auto;
+  padding-top: 10px;
+}
+
+.screen--wide {
+  max-width: 1400px;
 }
 
 .screen__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 8px;
+  gap: 8px;
+  border-bottom: 1px solid var(--color-border-soft);
+  padding-bottom: 10px;
   margin-bottom: 12px;
+}
+.screen__header h1 {
+  font-size: 1.05em;
+  line-height: 1.3;
 }
 
 .hp-readout {
-  font-size: 1.1em;
-  font-weight: bold;
-  color: var(--success);
+  font-size: 1em;
+  font-weight: 700;
+  color: var(--color-success);
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .muted {
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   font-size: 0.9em;
 }
 
 .danger-text {
-  color: var(--danger);
+  color: var(--color-danger);
   font-weight: bold;
 }
 
 .chip {
   display: inline-block;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 999px;
-  padding: 1px 8px;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-pill);
+  padding: 2px 9px;
   font-size: 0.75em;
   margin-right: 4px;
 }
 
+/* ============================================================
+   ボタン
+   ============================================================ */
 .btn {
-  background: var(--bg-panel-2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 8px 14px;
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: var(--radius-sm);
+  padding: 9px 15px;
   cursor: pointer;
   font-size: 0.95em;
-  transition: background 0.15s, transform 0.1s;
+  font-weight: 600;
+  transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  min-height: 38px;
 }
 .btn:hover:not(:disabled) {
-  background: #2c2236;
+  background: #33285a;
 }
 .btn:active:not(:disabled) {
-  transform: scale(0.97);
+  transform: scale(0.96);
 }
 .btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 .btn--primary {
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
   border: none;
-  font-weight: bold;
+  color: #1b1130;
+  font-weight: 800;
+  box-shadow: 0 4px 14px rgba(168, 85, 247, 0.35);
+}
+.btn--primary:hover:not(:disabled) {
+  filter: brightness(1.07);
 }
 .btn--large {
-  padding: 12px 24px;
-  font-size: 1.1em;
+  padding: 14px 24px;
+  font-size: 1.08em;
+  border-radius: var(--radius-md);
+  min-height: 52px;
 }
 .btn--small {
-  padding: 4px 10px;
-  font-size: 0.8em;
+  padding: 6px 11px;
+  font-size: 0.82em;
+  min-height: 30px;
 }
 .btn--danger {
-  border-color: var(--danger);
-  color: var(--danger);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
 }
 .btn--ghost {
   background: transparent;
   border-color: transparent;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
+}
+.btn--ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
 }
 .btn--active {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+.btn--block {
+  width: 100%;
 }
 
-/* --- Prep Screen --- */
-.prep-layout {
-  display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: 20px;
-}
-.prep-col h2 {
-  font-size: 1em;
-  margin-top: 18px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.prep-col--narrow {
-  border-left: 1px solid var(--border);
-  padding-left: 20px;
+/* ============================================================
+   汎用カード / セクション
+   ============================================================ */
+.section-card {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  box-shadow: var(--shadow-card);
 }
 
+.error-banner {
+  background: rgba(248, 97, 122, 0.15);
+  border: 1px solid var(--color-danger);
+  color: #ffd9de;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  margin: 8px 0;
+  font-size: 0.88em;
+  animation: pop-in 0.18s ease-out;
+}
+
+.screen__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--color-border-soft);
+  padding-top: 12px;
+  margin-top: 20px;
+}
+
+/* ============================================================
+   汎用アニメーション（100〜300ms程度に統一）
+   ============================================================ */
+@keyframes pop-in {
+  0% { opacity: 0; transform: translateY(4px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes card-select-lift {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-4px); }
+}
+@keyframes rare-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--rarity-rare), 0 0 18px 2px var(--rarity-rare-glow); }
+  50% { box-shadow: 0 0 0 2px var(--rarity-rare), 0 0 26px 6px var(--rarity-rare-glow); }
+}
+
+/* ============================================================
+   部位カード（PartCard）
+   ============================================================ */
 .part-grid {
   display: flex;
   flex-wrap: wrap;
@@ -171,47 +319,87 @@ h3 {
 }
 
 .part-card {
-  width: 130px;
-  min-height: 130px;
-  background: var(--bg-panel);
-  border: 2px solid #444;
-  border-radius: 10px;
-  padding: 8px;
+  width: 138px;
+  min-height: 138px;
+  background: linear-gradient(165deg, var(--color-panel-2), var(--color-panel));
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 10px;
   text-align: left;
   cursor: pointer;
-  color: var(--text);
+  color: var(--color-text);
   display: flex;
   flex-direction: column;
   gap: 4px;
   position: relative;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.part-card:active:not(.part-card--disabled) {
+  transform: scale(0.97);
+}
+.part-card--rarity-common {
+  border-color: var(--rarity-common);
+}
+.part-card--rarity-uncommon {
+  border-color: var(--rarity-uncommon);
+  box-shadow: 0 0 12px 1px var(--rarity-uncommon-glow);
+}
+.part-card--rarity-rare {
+  border-color: var(--rarity-rare);
+  box-shadow: 0 0 16px 2px var(--rarity-rare-glow);
+  animation: rare-glow-pulse 2.4s ease-in-out infinite;
 }
 .part-card--compact {
-  width: 100px;
-  min-height: 90px;
+  width: 108px;
+  min-height: 96px;
+  padding: 7px;
+  gap: 2px;
 }
 .part-card--selected {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--color-cyan);
+  outline-offset: 2px;
+  animation: card-select-lift 0.15s ease-out forwards;
 }
 .part-card--disabled {
-  opacity: 0.45;
+  opacity: 0.42;
+  cursor: not-allowed;
 }
 .part-card__badge {
   position: absolute;
-  top: -8px;
-  right: -8px;
-  background: var(--accent-2);
-  color: #1a1420;
+  top: -9px;
+  right: -9px;
+  background: linear-gradient(135deg, var(--color-secondary), var(--color-primary));
+  color: #1b1130;
   font-size: 0.7em;
-  border-radius: 999px;
-  padding: 2px 6px;
-  font-weight: bold;
+  border-radius: var(--radius-pill);
+  padding: 2px 7px;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.part-card__rarity-tag {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 0.62em;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.35);
+}
+.part-card__image {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.04);
 }
 .part-card__icon {
-  font-size: 1.6em;
+  font-size: 1.7em;
   line-height: 1;
 }
 .part-card__name {
-  font-weight: bold;
+  font-weight: 700;
   font-size: 0.9em;
 }
 .part-card__meta {
@@ -225,7 +413,7 @@ h3 {
   flex-wrap: wrap;
   gap: 6px;
   font-size: 0.75em;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
 }
 .part-card__tags {
   display: flex;
@@ -235,85 +423,112 @@ h3 {
   font-size: 0.85em;
 }
 
+/* ============================================================
+   接続容量ゲージ
+   ============================================================ */
 .capacity-bar {
   margin: 10px 0;
 }
 .capacity-bar__label {
-  font-size: 0.9em;
-  margin-bottom: 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.92em;
+  margin-bottom: 6px;
+}
+.capacity-bar__label b {
+  font-size: 1.15em;
 }
 .capacity-bar__track {
-  height: 12px;
-  border-radius: 999px;
-  background: var(--bg-panel-2);
+  height: 14px;
+  border-radius: var(--radius-pill);
+  background: var(--color-panel-2);
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
 }
 .capacity-bar__fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  background: linear-gradient(90deg, var(--color-cyan), var(--color-primary));
+  transition: width 0.2s ease;
+}
+.capacity-bar__fill--warn {
+  background: linear-gradient(90deg, var(--color-yellow), var(--color-secondary));
 }
 .capacity-bar__fill--over {
-  background: var(--danger);
+  background: var(--color-danger);
+}
+.capacity-bar--compact {
+  margin: 0;
+}
+.capacity-bar--compact .capacity-bar__label {
+  font-size: 0.78em;
+  margin-bottom: 3px;
+}
+.capacity-bar--compact .capacity-bar__track {
+  height: 8px;
 }
 
-.error-banner {
-  background: rgba(248, 113, 113, 0.15);
-  border: 1px solid var(--danger);
-  color: #fecaca;
-  padding: 8px 12px;
-  border-radius: 8px;
-  margin: 8px 0;
-  font-size: 0.9em;
-}
-
-.screen__footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-  margin-top: 20px;
-}
-
-/* --- Detail Panel --- */
+/* ============================================================
+   部位詳細パネル（カード風）
+   ============================================================ */
 .detail-panel {
-  background: var(--bg-panel);
-  border: 2px solid #555;
-  border-radius: 10px;
-  padding: 12px;
+  background: linear-gradient(170deg, var(--color-panel-2), var(--color-panel));
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-pop);
 }
 .detail-panel__header {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
 }
 .detail-panel__icon {
-  font-size: 2em;
+  font-size: 2.2em;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+.detail-panel__image {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
 }
 .detail-panel__name {
-  font-weight: bold;
-  font-size: 1.1em;
+  font-weight: 800;
+  font-size: 1.2em;
+  font-family: var(--font-title);
 }
 .detail-panel__sub {
-  font-size: 0.8em;
-  color: var(--text-muted);
+  font-size: 0.82em;
+  color: var(--color-text-muted);
 }
 .detail-panel__desc {
-  font-size: 0.9em;
-  margin: 8px 0 4px;
+  font-size: 0.92em;
+  margin: 10px 0 4px;
 }
 .detail-panel__passive {
-  font-size: 0.85em;
-  color: var(--accent-2);
+  font-size: 0.86em;
+  color: var(--color-secondary);
   margin: 4px 0;
 }
 .detail-panel__stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  font-size: 0.85em;
-  margin: 8px 0;
+  gap: 6px;
+  font-size: 0.86em;
+  margin: 10px 0;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
 }
 .detail-panel__tags {
   display: flex;
@@ -322,7 +537,7 @@ h3 {
 }
 .detail-panel__compare {
   margin-top: 10px;
-  border-top: 1px dashed var(--border);
+  border-top: 1px dashed var(--color-border);
   padding-top: 8px;
   font-size: 0.85em;
 }
@@ -333,7 +548,7 @@ h3 {
 }
 .detail-panel__synergy {
   margin-top: 10px;
-  border-top: 1px dashed var(--border);
+  border-top: 1px dashed var(--color-border);
   padding-top: 8px;
   font-size: 0.8em;
   display: flex;
@@ -341,78 +556,279 @@ h3 {
   gap: 3px;
 }
 .detail-panel__synergy-row {
-  color: var(--text-muted);
+  color: var(--color-text-muted);
+}
+.detail-panel__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
 }
 
-/* --- Synergy Panel --- */
+/* --- 部位選択時のシナジー変化プレビュー（部位獲得画面の要） --- */
+.synergy-delta {
+  margin-top: 10px;
+  border-top: 1px dashed var(--color-border);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.synergy-delta__title {
+  font-size: 0.8em;
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+.synergy-delta__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  padding: 5px 9px;
+}
+.synergy-delta__row--new {
+  background: rgba(74, 222, 128, 0.14);
+  border: 1px solid var(--color-success);
+  animation: pop-in 0.2s ease-out;
+}
+.synergy-delta__count {
+  font-weight: 800;
+}
+.synergy-delta__arrow {
+  color: var(--color-text-dim);
+}
+.synergy-delta__next {
+  font-weight: 800;
+  color: var(--color-cyan);
+}
+.synergy-delta__badge {
+  margin-left: auto;
+  font-size: 0.72em;
+  font-weight: 800;
+  color: #16321f;
+  background: var(--color-success);
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+}
+
+/* ============================================================
+   シナジー一覧
+   ============================================================ */
+.synergy-panel__tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.synergy-panel__tab {
+  flex: 1;
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  border-radius: var(--radius-pill);
+  padding: 7px 4px;
+  font-size: 0.82em;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
+}
+.synergy-panel__tab--active {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  color: #1b1130;
+  border-color: transparent;
+}
+.synergy-panel__tab:active {
+  transform: scale(0.96);
+}
 .synergy-panel__title {
-  font-weight: bold;
-  margin: 10px 0 4px;
-  color: var(--accent-2);
+  font-weight: 800;
+  margin: 10px 0 6px;
+  color: var(--color-secondary);
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.synergy-panel__empty {
+  font-size: 0.85em;
+  color: var(--color-text-dim);
+  padding: 10px 0;
 }
 .synergy-row {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 10px;
-  margin-bottom: 6px;
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-bottom: 7px;
   font-size: 0.85em;
+  transition: border-color 0.15s;
+}
+.synergy-row--state-active {
+  border-left-color: var(--color-success);
+}
+.synergy-row--state-soon {
+  border-left-color: var(--color-yellow);
+}
+.synergy-row--state-inactive {
+  border-left-color: var(--color-border);
+  opacity: 0.75;
+}
+.synergy-row--flash {
+  animation: rare-glow-pulse 0.6s ease-out 2;
 }
 .synergy-row__head {
   display: flex;
   justify-content: space-between;
-  font-weight: bold;
+  font-weight: 700;
+  align-items: center;
+}
+.synergy-row__level {
+  font-size: 0.78em;
+  font-weight: 800;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+}
+.synergy-row--state-active .synergy-row__level {
+  background: rgba(74, 222, 128, 0.18);
+  color: var(--color-success);
+}
+.synergy-row--state-soon .synergy-row__level {
+  background: rgba(251, 191, 36, 0.18);
+  color: var(--color-yellow);
+}
+.synergy-row--state-inactive .synergy-row__level {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-dim);
 }
 .synergy-row__tier {
-  margin-top: 2px;
+  margin-top: 3px;
 }
 .synergy-row__tier--active {
-  color: var(--success);
+  color: var(--color-success);
 }
 .synergy-row__tier--next {
-  color: var(--text-muted);
+  color: var(--color-text-muted);
 }
 
-/* --- Battle Screen --- */
-.battle-layout {
-  display: grid;
-  grid-template-columns: 1fr 120px 1fr;
-  gap: 16px;
-  align-items: start;
+/* ============================================================
+   下部固定ナビゲーション（ステータス / 部位 / シナジー / メニュー）
+   ============================================================ */
+.bottom-nav {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  background: rgba(28, 19, 48, 0.92);
+  backdrop-filter: blur(6px);
+  border-top: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding: 6px calc(env(safe-area-inset-left, 0px) + 4px) calc(env(safe-area-inset-bottom, 0px) + 6px)
+    calc(env(safe-area-inset-right, 0px) + 4px);
+  margin: 10px calc(-1 * env(safe-area-inset-left, 0px) + -12px) 0 calc(-1 * env(safe-area-inset-right, 0px) + -12px);
+  z-index: 20;
 }
-.battle-center {
+.bottom-nav__item {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 40px;
-  position: relative;
+  gap: 2px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-dim);
+  padding: 7px 2px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  min-height: 48px;
+  transition: color 0.15s, background 0.15s;
 }
-.battle-center__vs {
-  font-size: 2em;
-  font-weight: bold;
-  color: var(--text-muted);
+.bottom-nav__item:active {
+  transform: scale(0.95);
 }
-.battle-overlay {
+.bottom-nav__item--active {
+  color: var(--color-text);
+  background: rgba(168, 85, 247, 0.18);
+}
+.bottom-nav__icon {
+  font-size: 1.25em;
+  line-height: 1;
+}
+.bottom-nav__label {
+  font-size: 0.68em;
+  font-weight: 700;
+}
+
+.tab-panel {
+  animation: pop-in 0.15s ease-out;
+  padding-bottom: 8px;
+}
+
+/* ============================================================
+   モーダル共通（部位詳細・図鑑・初回説明で共用）
+   ============================================================ */
+.modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(10, 6, 14, 0.85);
+  background: rgba(8, 4, 18, 0.72);
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
-  gap: 20px;
-  z-index: 50;
+  z-index: 200;
+  padding: 0;
+  animation: pop-in 0.15s ease-out;
 }
-.battle-overlay__title {
-  font-size: 2.2em;
-  font-weight: bold;
+.modal-card {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding: 18px calc(env(safe-area-inset-left, 0px) + 16px) calc(env(safe-area-inset-bottom, 0px) + 18px)
+    calc(env(safe-area-inset-right, 0px) + 16px);
+  max-width: 520px;
+  width: 100%;
+  max-height: 88dvh;
+  overflow-y: auto;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5);
+  animation: modal-rise 0.2s ease-out;
+}
+@keyframes modal-rise {
+  0% { transform: translateY(16px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.modal-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.modal-card__close {
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: var(--color-text);
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  font-size: 0.95em;
 }
 
-/* --- Intro Modal --- */
+@media (min-width: 640px) {
+  .modal-overlay {
+    align-items: center;
+  }
+  .modal-card {
+    border-radius: var(--radius-lg);
+  }
+}
+
+/* ============================================================
+   初回説明モーダル
+   ============================================================ */
 .intro-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(10, 6, 14, 0.88);
+  background: rgba(8, 4, 18, 0.82);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -420,19 +836,21 @@ h3 {
   padding: 16px;
 }
 .intro-card {
-  background: var(--bg-panel);
-  border: 1px solid var(--accent);
-  border-radius: 14px;
+  background: linear-gradient(170deg, var(--color-panel-2), var(--color-panel));
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-lg);
   padding: 24px;
   max-width: 480px;
   width: 100%;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--shadow-pop);
+  animation: modal-rise 0.2s ease-out;
 }
 .intro-card__title {
   font-size: 1.3em;
-  font-weight: bold;
+  font-weight: 800;
   margin-bottom: 14px;
   text-align: center;
+  font-family: var(--font-title);
 }
 .intro-card__list {
   list-style: none;
@@ -448,14 +866,16 @@ h3 {
 }
 .intro-card__hint {
   font-size: 0.82em;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   margin: 0 0 16px;
 }
 .intro-card .btn--large {
   width: 100%;
 }
 
-/* --- Chimera Gallery Modal --- */
+/* ============================================================
+   キメラ図鑑モーダル
+   ============================================================ */
 .gallery-card {
   max-width: 560px;
   max-height: 82vh;
@@ -476,9 +896,9 @@ h3 {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: var(--bg-panel-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   padding: 8px 12px;
 }
 .gallery-entry__icons {
@@ -505,7 +925,7 @@ h3 {
   background: rgba(168, 85, 247, 0.15);
 }
 .gallery-entry__icon-btn--selected {
-  border-color: var(--accent);
+  border-color: var(--color-primary);
   background: rgba(168, 85, 247, 0.25);
 }
 .gallery-entry__info {
@@ -541,10 +961,13 @@ h3 {
   margin-bottom: 12px;
 }
 
+/* ============================================================
+   戦闘中コンバタントパネル（旧レイアウト・互換維持）
+   ============================================================ */
 .combatant-panel {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   padding: 14px;
 }
 .combatant-panel--player {
@@ -568,11 +991,11 @@ h3 {
 
 .hp-bar {
   position: relative;
-  height: 22px;
-  background: #241a1a;
-  border-radius: 6px;
+  height: 24px;
+  background: #241a2a;
+  border-radius: var(--radius-sm);
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
   margin-bottom: 6px;
 }
 .hp-bar__fill {
@@ -586,12 +1009,12 @@ h3 {
   align-items: center;
   justify-content: center;
   font-size: 0.8em;
-  font-weight: bold;
+  font-weight: 800;
   text-shadow: 0 1px 2px #000;
 }
 
 .status-badge {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 2px 8px;
   font-size: 0.8em;
 }
@@ -621,18 +1044,18 @@ h3 {
 }
 .part-activity__bar {
   height: 8px;
-  background: var(--bg-panel-2);
-  border-radius: 999px;
+  background: var(--color-panel-2);
+  border-radius: var(--radius-pill);
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
 }
 .part-activity__bar-fill {
   height: 100%;
-  background: var(--accent);
+  background: var(--color-primary);
 }
 .part-activity__count {
   text-align: right;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
 }
 
 .battle-footer {
@@ -646,8 +1069,8 @@ h3 {
 }
 .battle-log {
   background: #0c0810;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   padding: 8px 12px;
   height: 160px;
   overflow-y: auto;
@@ -660,39 +1083,59 @@ h3 {
   color: #d8c8e8;
 }
 
-/* --- Drop Screen --- */
+/* ============================================================
+   部位獲得画面
+   ============================================================ */
 .drop-candidates {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   margin: 16px 0;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 .drop-detail {
   max-width: 480px;
 }
 .drop-actions {
   display: flex;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
   margin-top: 10px;
 }
 
-/* --- Debug Panel --- */
-/* デバッグパネルは右側の引き出し（ドロワー）とし、開いたときは本文をpadding-rightで
-   押しのけることで、画面下部・端のボタンと重ならないようにする */
+/* ============================================================
+   デバッグUI: プレイヤー向けUIと誤認しないよう、目立たない場所・
+   地味なトーンにする（機能自体はTEST4でも維持）。
+   ============================================================ */
 body.debug-open {
   padding-right: 300px;
 }
 .debug-toggle {
   position: fixed;
-  top: 10px;
-  right: 10px;
-  z-index: 100;
-  background: var(--bg-panel-2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 999px;
-  padding: 6px 12px;
+  top: env(safe-area-inset-top, 0px);
+  left: env(safe-area-inset-left, 0px);
+  z-index: 90;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  border-top: none;
+  border-left: none;
+  color: rgba(255, 255, 255, 0.4);
+  border-radius: 0 0 var(--radius-sm) 0;
+  padding: 0;
   cursor: pointer;
-  font-size: 0.85em;
+  font-size: 0.7em;
+  line-height: 1;
+  opacity: 0.7;
+}
+.debug-toggle:hover {
+  color: rgba(255, 255, 255, 0.85);
+  border-color: rgba(255, 255, 255, 0.5);
+  opacity: 1;
 }
 .debug-panel {
   position: fixed;
@@ -701,11 +1144,13 @@ body.debug-open {
   bottom: 0;
   width: 300px;
   overflow-y: auto;
-  background: #150e1c;
-  border-left: 1px solid var(--accent);
+  background: #120c1c;
+  border-left: 1px dashed rgba(255, 255, 255, 0.25);
   padding: 12px;
-  z-index: 100;
-  font-size: 0.85em;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
+  z-index: 90;
+  font-size: 0.82em;
+  font-family: monospace;
   box-shadow: -8px 0 30px rgba(0, 0, 0, 0.5);
 }
 .debug-panel__header {
@@ -714,15 +1159,16 @@ body.debug-open {
   align-items: center;
   font-weight: bold;
   margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.6);
 }
 .debug-panel__group {
   margin-bottom: 10px;
   padding-bottom: 8px;
-  border-bottom: 1px dashed var(--border);
+  border-bottom: 1px dashed var(--color-border);
 }
 .debug-panel__group label {
   display: block;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   margin-bottom: 4px;
 }
 .debug-panel__row {
@@ -732,22 +1178,24 @@ body.debug-open {
   align-items: center;
 }
 .debug-panel__row select {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 4px;
   max-width: 160px;
 }
 
-/* --- Result Screen --- */
+/* ============================================================
+   結果画面
+   ============================================================ */
 .result-screen .part-grid {
   margin-bottom: 20px;
 }
 
 .naming-box {
-  background: var(--bg-panel);
-  border: 1px solid var(--accent);
-  border-radius: 10px;
+  background: var(--color-panel);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
   padding: 14px;
   margin: 14px 0;
 }
@@ -763,35 +1211,37 @@ body.debug-open {
 .naming-box__input {
   flex: 1;
   min-width: 160px;
-  background: var(--bg-panel-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   padding: 8px 10px;
-  color: var(--text);
+  color: var(--color-text);
   font-size: 0.95em;
 }
 .naming-box--done {
-  color: var(--success);
+  color: var(--color-success);
   font-size: 0.95em;
 }
 
 .crit-stat {
-  color: var(--warn);
+  color: var(--color-warn);
   font-weight: bold;
 }
 
-/* --- Chimera Avatar（装着部位を集合させたキメライメージ） --- */
+/* ============================================================
+   キメラアバター（装着部位を集合させたキメライメージ）
+   ============================================================ */
 .chimera-avatar {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 8px;
+  padding: 10px;
   margin-bottom: 6px;
-  border-radius: 14px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.16), rgba(168, 85, 247, 0.02) 70%);
+  border-radius: var(--radius-lg);
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.18), rgba(56, 219, 240, 0.04) 70%);
   border: 1px dashed rgba(168, 85, 247, 0.35);
-  min-height: 56px;
+  min-height: 64px;
 }
 .chimera-avatar__row {
   display: flex;
@@ -812,28 +1262,28 @@ body.debug-open {
   min-width: 4px;
 }
 .chimera-avatar__icon {
-  font-size: 1.25em;
+  font-size: 1.3em;
   line-height: 1;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
 }
 .chimera-avatar__more {
   font-size: 0.65em;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   align-self: center;
   margin-left: 2px;
 }
 .chimera-avatar__core-only {
-  font-size: 1.6em;
-  opacity: 0.6;
+  font-size: 1.8em;
+  opacity: 0.65;
   padding: 6px 0;
 }
 .chimera-avatar--sm {
-  padding: 4px;
-  min-height: 36px;
+  padding: 5px;
+  min-height: 40px;
   gap: 1px;
 }
 .chimera-avatar--sm .chimera-avatar__icon {
-  font-size: 0.95em;
+  font-size: 1em;
 }
 .chimera-avatar--sm .chimera-avatar__row {
   gap: 4px;
@@ -843,252 +1293,13 @@ body.debug-open {
 }
 
 /* ============================================================
-   スマホ縦画面向けレスポンシブ対応
-   PC表示（上記のデフォルトスタイル）は変更せず、
-   640px以下のときだけコンパクトなレイアウトに切り替える。
-   ============================================================ */
-@media (max-width: 640px) {
-  .app-root {
-    padding: 8px 8px 56px;
-  }
-
-  .screen__header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-    padding-bottom: 6px;
-    margin-bottom: 8px;
-  }
-  .screen__header h1 {
-    font-size: 1rem;
-    line-height: 1.35;
-  }
-  .hp-readout {
-    font-size: 0.9em;
-  }
-  .screen h2 {
-    font-size: 0.95em;
-    margin-top: 12px;
-  }
-
-  .btn {
-    padding: 7px 12px;
-    font-size: 0.9em;
-  }
-
-  /* --- 戦闘準備・ドロップ画面: 1カラムに積む --- */
-  .prep-layout {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-  .prep-col--narrow {
-    border-left: none;
-    border-top: 1px solid var(--border);
-    padding-left: 0;
-    padding-top: 12px;
-  }
-  .screen__footer {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-  .screen__footer .btn--large {
-    width: 100%;
-  }
-
-  .part-card {
-    width: 94px;
-    min-height: 96px;
-    padding: 6px;
-    gap: 2px;
-  }
-  .part-card__icon {
-    font-size: 1.3em;
-  }
-  .part-card__name {
-    font-size: 0.78em;
-  }
-  .part-card__meta {
-    font-size: 0.62em;
-    gap: 2px;
-  }
-  .part-card__stats {
-    font-size: 0.65em;
-    gap: 4px;
-  }
-  .part-grid {
-    gap: 8px;
-  }
-
-  .drop-candidates {
-    gap: 8px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-  .drop-detail {
-    max-width: 100%;
-  }
-  .drop-actions {
-    flex-direction: column;
-  }
-  .drop-actions .btn {
-    width: 100%;
-  }
-
-  /* --- 戦闘画面: 自キャラ・敵を横並びのまま極力コンパクトに --- */
-  .battle-layout {
-    grid-template-columns: 1fr 18px 1fr;
-    gap: 4px;
-  }
-  .battle-center {
-    padding-top: 2px;
-  }
-  .battle-center__vs {
-    font-size: 0.65em;
-    writing-mode: vertical-rl;
-  }
-  .battle-overlay__title {
-    font-size: 1.4em;
-    text-align: center;
-    padding: 0 16px;
-  }
-
-  .combatant-panel {
-    padding: 8px;
-    border-radius: 8px;
-  }
-  .combatant-panel__name {
-    font-size: 0.82em;
-    margin-bottom: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .hp-bar {
-    height: 16px;
-    margin-bottom: 4px;
-  }
-  .hp-bar__label {
-    font-size: 0.68em;
-  }
-  .combatant-panel__row {
-    gap: 5px;
-    margin: 2px 0;
-    font-size: 0.68em;
-  }
-  .status-badge {
-    font-size: 0.62em;
-    padding: 1px 5px;
-  }
-
-  .part-activity-list {
-    max-height: 30vh;
-    gap: 3px;
-    margin-top: 6px;
-  }
-  .part-activity {
-    grid-template-columns: 13px 1fr 26px;
-    gap: 3px;
-    font-size: 0.65em;
-  }
-  .part-activity__bar {
-    height: 5px;
-  }
-
-  .battle-footer {
-    margin-top: 8px;
-  }
-  .speed-controls {
-    gap: 4px;
-    margin-bottom: 6px;
-    font-size: 0.8em;
-  }
-  .battle-log {
-    height: 70px;
-    padding: 5px 8px;
-    font-size: 0.66em;
-  }
-
-  /* --- デバッグパネル: 画面を押しのけず全幅オーバーレイに --- */
-  body.debug-open {
-    padding-right: 0;
-  }
-  .debug-panel {
-    width: 100%;
-  }
-  .debug-toggle {
-    padding: 5px 10px;
-    font-size: 0.8em;
-  }
-
-  /* --- 結果画面 --- */
-  .result-screen .muted {
-    font-size: 0.8em;
-  }
-  .naming-box {
-    padding: 10px;
-  }
-  .naming-box__row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .naming-box__row .btn {
-    width: 100%;
-  }
-
-  .chimera-avatar {
-    padding: 4px;
-    min-height: 40px;
-    margin-bottom: 4px;
-  }
-  .chimera-avatar__icon {
-    font-size: 1em;
-  }
-  .chimera-avatar__row {
-    gap: 4px;
-  }
-  .chimera-avatar__zone {
-    max-width: 76px;
-  }
-
-  /* --- 初回説明モーダル --- */
-  .intro-card {
-    padding: 18px;
-  }
-  .intro-card__title {
-    font-size: 1.1em;
-  }
-  .intro-card__list li {
-    font-size: 0.85em;
-  }
-
-  /* --- キメラ図鑑 --- */
-  .gallery-entry {
-    gap: 8px;
-    padding: 6px 8px;
-    flex-wrap: wrap;
-  }
-  .gallery-entry__icons {
-    max-width: 64px;
-  }
-  .gallery-entry__name {
-    font-size: 0.9em;
-  }
-  .gallery-entry__sub {
-    font-size: 0.72em;
-  }
-  .gallery-entry__build-btn {
-    flex-basis: 100%;
-  }
-}
-
-/* ============================================================
-   BALANCE管理画面（テスト版限定）
-   既存のトークン(--bg-panel等)・クラス(.btn/.chip/.error-banner等)を極力再利用する。
+   BALANCE管理画面（テスト版限定・開発者用。デザイン変更対象外だが
+   旧変数エイリアス経由で新パレットへ自然に追従する）
    ============================================================ */
 .admin-screen {
   max-width: 1200px;
   margin: 0 auto;
+  padding: 0 12px;
 }
 .admin-screen__hint {
   margin: 4px 0 12px;
@@ -1370,51 +1581,58 @@ body.debug-open {
 }
 
 /* ============================================================
-   TEST2フェーズ2: コマンド・敵ギミック
+   戦闘コマンドバー
    ============================================================ */
 .command-bar {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin: 14px 0;
+  gap: 8px;
+  margin: 10px 0;
 }
 .command-btn {
   position: relative;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  min-width: 96px;
-  background: var(--bg-panel);
-  border: 2px solid var(--border);
-  border-radius: 10px;
-  padding: 8px 12px;
-  color: var(--text);
+  min-width: 0;
+  background: var(--color-panel);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 10px 6px;
+  color: var(--color-text);
   cursor: pointer;
   opacity: 0.55;
+  transition: transform 0.1s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+.command-btn:active:not(:disabled) {
+  transform: scale(0.95);
 }
 .command-btn--ready {
   opacity: 1;
-  border-color: var(--accent);
-  box-shadow: 0 0 10px rgba(168, 85, 247, 0.35);
+  border-color: var(--command-color, var(--color-primary));
+  box-shadow: 0 0 12px var(--command-glow, rgba(168, 85, 247, 0.4));
+  background: linear-gradient(165deg, var(--color-panel-2), var(--color-panel));
 }
 .command-btn:disabled {
   cursor: not-allowed;
 }
 .command-btn__icon {
-  font-size: 1.4em;
+  font-size: 1.5em;
 }
 .command-btn__name {
-  font-weight: bold;
-  font-size: 0.9em;
+  font-weight: 800;
+  font-size: 0.85em;
+  white-space: nowrap;
 }
 .command-btn__status {
-  font-size: 0.75em;
-  color: var(--text-muted);
+  font-size: 0.72em;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
 }
 .command-btn--ready .command-btn__status {
-  color: var(--success);
-  font-weight: bold;
+  color: var(--command-color, var(--color-success));
+  font-weight: 800;
 }
 .command-btn--flash {
   animation: command-flash 0.4s ease-out;
@@ -1436,76 +1654,52 @@ body.debug-open {
   position: absolute;
   top: -10px;
   right: -6px;
-  background: var(--warn);
+  background: var(--color-warn);
   color: #1a1420;
   font-size: 0.65em;
   font-weight: bold;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 1px 6px;
 }
 
 .gimmick-indicator {
-  background: rgba(250, 204, 21, 0.1);
-  border: 1px solid var(--warn);
-  border-radius: 8px;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid var(--color-warn);
+  border-radius: var(--radius-sm);
   padding: 4px 8px;
   margin: 4px 0;
   font-size: 0.8em;
   text-align: center;
 }
 .gimmick-indicator--active {
-  background: rgba(248, 113, 113, 0.15);
-  border-color: var(--danger);
+  background: rgba(248, 97, 122, 0.15);
+  border-color: var(--color-danger);
 }
 .gimmick-indicator__label {
   font-weight: bold;
 }
 .gimmick-indicator__bar {
   letter-spacing: 2px;
-  color: var(--warn);
+  color: var(--color-warn);
 }
 .gimmick-indicator--active .gimmick-indicator__bar {
-  color: var(--danger);
+  color: var(--color-danger);
 }
 .gimmick-indicator__time {
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   font-size: 0.85em;
 }
 
-@media (max-width: 640px) {
-  .command-bar {
-    gap: 6px;
-    margin: 8px 0;
-  }
-  .command-btn {
-    min-width: 74px;
-    padding: 6px 8px;
-  }
-  .command-btn__icon {
-    font-size: 1.15em;
-  }
-  .command-btn__name {
-    font-size: 0.78em;
-  }
-  .command-btn__status {
-    font-size: 0.65em;
-  }
-  .gimmick-indicator {
-    font-size: 0.7em;
-    padding: 3px 6px;
-  }
-}
-
 /* ============================================================
-   TEST3フェーズ3: 縦画面バトルステージ・キャラクター表示・演出
+   戦闘画面（縦画面ステージ）
    ============================================================ */
-
 .battle-screen-v2 {
   max-width: 480px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 1;
 }
 .battle-screen-v2--shake {
   animation: screen-shake 0.26s ease-in-out;
@@ -1537,37 +1731,43 @@ body.debug-open {
 }
 .sound-settings__volume {
   width: 70px;
+  accent-color: var(--color-primary);
 }
 
 .battle-stage {
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
+  flex: 1;
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.07), rgba(56, 219, 240, 0.04) 60%, transparent);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-lg);
   overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 .battle-stage__enemy-row,
 .battle-stage__player-row {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 8px 12px;
+  padding: 10px 14px;
 }
 .battle-stage__enemy-row {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--color-border-soft);
 }
 .battle-stage__player-row {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--color-border-soft);
+  background: rgba(255, 255, 255, 0.02);
 }
 .battle-stage__name {
-  font-weight: 700;
-  font-size: 0.9em;
+  font-weight: 800;
+  font-size: 0.95em;
+  font-family: var(--font-title);
 }
 .battle-stage__synergy-summary {
-  font-size: 0.72em;
-  opacity: 0.75;
+  font-size: 0.74em;
+  opacity: 0.8;
   cursor: help;
+  color: var(--color-cyan);
 }
 .status-row {
   display: flex;
@@ -1580,8 +1780,9 @@ body.debug-open {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 300px;
-  padding: 10px 0;
+  min-height: 340px;
+  flex: 1;
+  padding: 14px 0;
 }
 .battle-stage__enemy-figure,
 .battle-stage__player-figure {
@@ -1611,6 +1812,9 @@ body.debug-open {
   flex-direction: column;
   gap: 8px;
 }
+.battle-bottom__capacity {
+  padding: 0 2px;
+}
 .battle-bottom__controls {
   display: flex;
   justify-content: space-between;
@@ -1623,7 +1827,7 @@ body.debug-open {
   flex-direction: column;
   gap: 10px;
   background: rgba(255, 255, 255, 0.02);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 8px;
 }
 .battle-details__stats {
@@ -1637,11 +1841,11 @@ body.debug-open {
   margin-bottom: 4px;
 }
 
-/* --- キャラクター(BattleFigure) --- */
+/* --- キャラクター(BattleFigure): 添付モックのようにキャラクターを主役として大きく見せる --- */
 .battle-figure {
   position: relative;
-  width: clamp(110px, 30vw, 150px);
-  height: clamp(110px, 30vw, 150px);
+  width: clamp(150px, 42vw, 210px);
+  height: clamp(150px, 42vw, 210px);
   margin: 0 auto;
 }
 .battle-figure__body {
@@ -1655,8 +1859,8 @@ body.debug-open {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.6em;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08), 0 4px 14px rgba(0, 0, 0, 0.35);
+  font-size: 2.2em;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1), 0 6px 20px rgba(0, 0, 0, 0.4);
   transition: filter 0.2s, box-shadow 0.2s;
   z-index: 2;
 }
@@ -1668,7 +1872,7 @@ body.debug-open {
 }
 .battle-figure__heart {
   position: absolute;
-  font-size: 0.9em;
+  font-size: 1em;
   animation: heart-pulse 1.1s ease-in-out infinite;
 }
 @keyframes heart-pulse {
@@ -1775,8 +1979,8 @@ body.debug-open {
   width: 72%;
   height: 72%;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(96, 165, 250, 0.05), rgba(96, 165, 250, 0.35));
-  border: 2px solid rgba(96, 165, 250, 0.8);
+  background: radial-gradient(circle, rgba(56, 219, 240, 0.05), rgba(56, 219, 240, 0.32));
+  border: 2px solid rgba(56, 219, 240, 0.85);
   animation: shield-pulse 1.4s ease-in-out infinite;
   z-index: 2;
 }
@@ -1786,19 +1990,19 @@ body.debug-open {
 }
 
 .battle-figure--rampage .battle-figure__body {
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08), 0 0 18px 4px rgba(251, 146, 60, 0.85);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1), 0 0 20px 5px rgba(251, 146, 60, 0.85);
 }
 .battle-figure--slowed .battle-figure__body {
   filter: saturate(0.5) brightness(0.75);
 }
 .battle-figure--glow-poison .battle-figure__body {
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08), 0 0 16px 4px rgba(168, 85, 247, 0.75);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1), 0 0 18px 5px rgba(168, 85, 247, 0.75);
 }
 .battle-figure--glow-fire .battle-figure__body {
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08), 0 0 16px 4px rgba(249, 115, 22, 0.8);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1), 0 0 18px 5px rgba(249, 115, 22, 0.8);
 }
 .battle-figure--glow-defense .battle-figure__body {
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08), 0 0 16px 4px rgba(96, 165, 250, 0.7);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1), 0 0 18px 5px rgba(56, 219, 240, 0.75);
 }
 
 /* --- ダメージ数字・HITカウンター・シナジートースト --- */
@@ -1813,15 +2017,15 @@ body.debug-open {
   top: 50%;
   transform: translate(-50%, 0);
   font-weight: 700;
-  font-size: 0.95em;
+  font-size: 1em;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
   animation: float-up 1.05s ease-out forwards;
   white-space: nowrap;
 }
-.floater--enemy { top: 28%; color: #fecaca; }
-.floater--player { top: 72%; color: #fca5a5; }
-.floater--big { font-size: 1.3em; color: #fde047; }
-.floater--crit { font-size: 1.5em; color: #f97316; font-style: italic; }
+.floater--enemy { top: 24%; color: #fecaca; }
+.floater--player { top: 76%; color: #fca5a5; }
+.floater--big { font-size: 1.35em; color: #fde047; }
+.floater--crit { font-size: 1.55em; color: #f97316; font-style: italic; }
 .floater--fixed { color: #a78bfa; }
 .floater--heal { color: #4ade80; }
 .floater--merged { color: #fbbf24; font-size: 0.85em; }
@@ -1834,7 +2038,7 @@ body.debug-open {
 
 .synergy-toast-layer {
   position: absolute;
-  top: 4%;
+  top: 3%;
   left: 50%;
   transform: translateX(-50%);
   z-index: 6;
@@ -1844,13 +2048,13 @@ body.debug-open {
   gap: 4px;
 }
 .synergy-toast {
-  background: linear-gradient(90deg, rgba(250, 204, 21, 0.15), rgba(250, 204, 21, 0.35));
-  border: 1px solid rgba(250, 204, 21, 0.7);
-  color: #fef08a;
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.18), rgba(244, 114, 182, 0.32));
+  border: 1px solid rgba(251, 191, 36, 0.7);
+  color: #fef3c7;
   font-weight: 700;
   font-size: 0.8em;
-  padding: 3px 10px;
-  border-radius: 999px;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
   animation: toast-pop 1.5s ease-out forwards;
   white-space: nowrap;
 }
@@ -1864,7 +2068,7 @@ body.debug-open {
 
 .hit-counter {
   position: absolute;
-  top: 42%;
+  top: 40%;
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 7;
@@ -1873,7 +2077,7 @@ body.debug-open {
 .hit-counter__num {
   display: block;
   font-weight: 800;
-  font-size: 1.6em;
+  font-size: 1.7em;
   color: #fde68a;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
 }
@@ -1883,10 +2087,10 @@ body.debug-open {
   color: #fde68a;
   opacity: 0.85;
 }
-.hit-counter--big .hit-counter__num { font-size: 2em; color: #fbbf24; }
-.hit-counter--huge .hit-counter__num { font-size: 2.5em; color: #fb923c; text-shadow: 0 0 10px rgba(251, 146, 60, 0.8); }
+.hit-counter--big .hit-counter__num { font-size: 2.1em; color: #fbbf24; }
+.hit-counter--huge .hit-counter__num { font-size: 2.6em; color: #fb923c; text-shadow: 0 0 10px rgba(251, 146, 60, 0.8); }
 .hit-counter--epic .hit-counter__num {
-  font-size: 3em;
+  font-size: 3.1em;
   color: #f87171;
   text-shadow: 0 0 14px rgba(248, 113, 113, 0.9);
   animation: hit-epic-pulse 0.5s ease-in-out infinite;
@@ -1896,15 +2100,112 @@ body.debug-open {
   50% { transform: scale(1.1); }
 }
 
-@media (max-width: 640px) {
-  .battle-figure {
-    width: clamp(96px, 34vw, 130px);
-    height: clamp(96px, 34vw, 130px);
+/* ============================================================
+   戦闘準備画面（TEST4: タブ構造 + 下部ナビ）
+   ============================================================ */
+.prep-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.prep-hero__title {
+  text-align: center;
+  font-size: 0.85em;
+  color: var(--color-text-muted);
+}
+
+.prep-status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+.prep-status-tile {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  text-align: center;
+}
+.prep-status-tile__value {
+  font-size: 1.3em;
+  font-weight: 800;
+  font-family: var(--font-title);
+}
+.prep-status-tile__label {
+  font-size: 0.72em;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.prep-part-section {
+  margin-bottom: 6px;
+}
+.prep-part-section__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 14px 0 8px;
+}
+.prep-part-section__head h2 {
+  font-size: 0.92em;
+  margin: 0;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.prep-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.prep-menu-list .btn {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.sticky-cta {
+  position: sticky;
+  bottom: 66px;
+  z-index: 15;
+  padding-top: 6px;
+}
+
+/* ============================================================
+   スマホ縦画面向け微調整
+   （ベーススタイルは既にモバイル最適寸法のため、640px以下では
+   さらに小さくフォント・余白を詰める程度にとどめる）
+   ============================================================ */
+@media (max-width: 420px) {
+  .screen {
+    padding-top: 6px;
   }
-  .hit-counter__num { font-size: 1.3em; }
-  .hit-counter--big .hit-counter__num { font-size: 1.6em; }
-  .hit-counter--huge .hit-counter__num { font-size: 2em; }
-  .hit-counter--epic .hit-counter__num { font-size: 2.4em; }
-  .synergy-toast { font-size: 0.72em; padding: 2px 8px; }
+  .screen__header h1 {
+    font-size: 0.95rem;
+  }
+  .hp-readout {
+    font-size: 0.85em;
+  }
+  .part-card {
+    width: 118px;
+    min-height: 118px;
+  }
+  .part-card--compact {
+    width: 92px;
+    min-height: 84px;
+  }
+  .battle-figure {
+    width: clamp(128px, 44vw, 170px);
+    height: clamp(128px, 44vw, 170px);
+  }
+  .hit-counter__num { font-size: 1.4em; }
+  .hit-counter--big .hit-counter__num { font-size: 1.7em; }
+  .hit-counter--huge .hit-counter__num { font-size: 2.1em; }
+  .hit-counter--epic .hit-counter__num { font-size: 2.5em; }
+  .synergy-toast { font-size: 0.72em; padding: 3px 9px; }
   .sound-settings__volume { width: 50px; }
+  .command-btn__name {
+    font-size: 0.76em;
+  }
 }

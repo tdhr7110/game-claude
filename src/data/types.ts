@@ -108,6 +108,8 @@ export interface PartDef {
   specialAbilityId?: string; // specialAbilities.ts のエントリと紐づく場合のID（管理画面でのパラメータ編集導線用）
   dropWeight?: number; // 同レアリティ内での相対ドロップ重み（省略時は1として扱う）
   enabled?: boolean; // false の場合、ドロップ候補プールから除外される（省略時はtrue扱い。装備済み部位の解決には影響しない）
+  // TEST4: 正式な部位イラストを後から差し替えるための画像パス（省略時はicon絵文字を表示する）。
+  image?: string;
 }
 
 export interface PartInstance {

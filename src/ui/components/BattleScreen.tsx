@@ -5,7 +5,9 @@ import { getPartDef } from '../../engine/adminStore';
 import { CORE_HP_BASE, BASE_DEFENSE, getCapacityInfo, TOTAL_BATTLES } from '../../engine/run';
 import { BattleFigure, dominantSpeciesColor, groupCountByType, figureArmsFromSnapshot } from './BattleFigure';
 import { FloatingNumbers, HitCounter, SynergyToastList, type Floater, type SynergyToast } from './BattleEffects';
+import { CapacityBar } from './CapacityBar';
 import { playSE, getSESettings, setSEEnabled, setSEVolume, subscribeSESettings } from '../../engine/soundManager';
+import { COMMAND_COLORS } from '../format';
 
 const SPEED_OPTIONS: SpeedSetting[] = [0, 1, 2, 4];
 const FLOATER_TTL_MS = 1100;
@@ -75,17 +77,19 @@ function CommandBar({
     <div className="command-bar">
       {commands.map((c) => {
         const ready = c.cooldownRemaining <= 0;
+        const colors = COMMAND_COLORS[c.id] ?? COMMAND_COLORS.default;
         return (
           <button
             key={c.id}
             className={`command-btn${ready ? ' command-btn--ready' : ''}${justUsedId === c.id ? ' command-btn--flash' : ''}`}
+            style={{ ['--command-color' as string]: colors.color, ['--command-glow' as string]: colors.glow }}
             disabled={!ready}
             title={c.description}
             onClick={() => onUse(c.id)}
           >
             <span className="command-btn__icon">{c.icon}</span>
             <span className="command-btn__name">{c.name}</span>
-            <span className="command-btn__status">{ready ? 'READY' : `残り${c.cooldownRemaining.toFixed(1)}秒`}</span>
+            <span className="command-btn__status">{ready ? 'READY' : `${c.cooldownRemaining.toFixed(1)} sec`}</span>
             {justUsedId === c.id && <span className="command-btn__flash-text">使用！</span>}
           </button>
         );
@@ -151,6 +155,7 @@ export function BattleScreen() {
   const avatarDefs = useMemo(() => state.equipped.map((i) => getPartDef(i.defId)), [state.equipped]);
   const playerCounts = useMemo(() => groupCountByType(avatarDefs), [avatarDefs]);
   const playerColor = useMemo(() => dominantSpeciesColor(avatarDefs), [avatarDefs]);
+  const capacity = useMemo(() => getCapacityInfo(state), [state]);
 
   const floatersRef = useRef<Floater[]>([]);
   const toastsRef = useRef<(SynergyToast & { createdAt: number })[]>([]);
@@ -417,6 +422,9 @@ export function BattleScreen() {
       </div>
 
       <div className="battle-bottom">
+        <div className="battle-bottom__capacity">
+          <CapacityBar used={capacity.used} total={capacity.total} compact />
+        </div>
         <CommandBar commands={snapshot.commands} onUse={handleUseCommand} justUsedId={justUsedId} />
         <div className="battle-bottom__controls">
           <div className="speed-controls">

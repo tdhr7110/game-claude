@@ -49,8 +49,8 @@ export function DebugPanel() {
 
   if (!open) {
     return (
-      <button className="debug-toggle" onClick={() => setOpen(true)}>
-        🛠 デバッグ
+      <button className="debug-toggle" onClick={() => setOpen(true)} title="デバッグパネル（プレイヤー向け機能ではありません）">
+        🛠
       </button>
     );
   }
