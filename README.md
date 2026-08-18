@@ -25,7 +25,36 @@ npm run build    # 型チェック + 本番ビルド（dist/ に出力）
 npm run preview  # ビルド結果をローカルで確認
 npm run lint     # oxlint による静的解析
 npx tsx scripts/simulate.ts   # バランス検証用の自動シミュレーション（後述）
+npm run export-data           # ゲームデータをExcelへ出力（後述）
 ```
+
+## ゲームデータのExcel出力（TEST5）
+
+部位・部位能力・コマンド・コマンド能力・発動条件・クールダウン等のゲームデータを、
+1つのExcelファイル `CHIMERA_BUTCHER_GameData.xlsx`（リポジトリ直下・gitignore対象）として
+出力できます。
+
+```bash
+npm run export-data
+# または
+npx tsx scripts/exportGameData.ts
+```
+
+**仕組み**: `scripts/exportGameData.ts` が `src/data/parts.ts` / `src/data/commandDefs.ts` /
+`src/data/synergies.ts` / `src/ui/commandFormat.ts` など、ゲームが実際に使用しているデータを
+実行時にimportして読み取るだけで、Excel用の値を手入力・二重管理することはしていません。
+そのため、部位やコマンドをゲーム側で追加・修正した後は、このコマンドを再実行するだけで
+最新版のExcelが再生成されます。
+
+出力されるシート: `Info`（生成日時・環境・データ元一覧）、`Parts`（部位一覧）、
+`Commands`（コマンド一覧・発動条件・効果）、`Effects`（Trigger/Effect方式の能力一覧、
+部位・コマンドからの相互参照）、`Synergies`（部位数/種族シナジー一覧）。
+
+**今後のルール**: 部位・コマンド・シナジー・Effect（PartEffectのkindやCommandEffectId）の
+データ構造を追加・変更した場合は、`scripts/exportGameData.ts` 内の対応する説明マッピング
+（`EFFECT_META` 等）・列定義も必ず更新してください。`EFFECT_META` に未登録の
+PartEffect kind が実データに現れた場合、`npm run export-data` は実行時エラーで
+明示的に停止します（サイレントに古い内容のまま出力されることはありません）。
 
 ## 使用した技術
 
