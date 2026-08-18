@@ -92,6 +92,25 @@ jobs:
           mkdir -p ../dist/test3
           cp -r dist/. ../dist/test3/
 
+      # フェーズ4（TEST4: ポップUI・ゲームデザイン刷新検証版）を /test4/ サブパスに同梱する。
+      # TEST1・TEST2・TEST3・正式版とは完全に独立したブランチで、取得・ビルドに失敗しても他のデプロイは継続する。
+      - name: Checkout test4 branch (フェーズ4検証用)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: test4/chimera-butcher-phase4
+          path: test4-branch
+
+      - name: Build test4 branch into /test4/ subpath
+        if: hashFiles('test4-branch/package.json') != ''
+        continue-on-error: true
+        run: |
+          cd test4-branch
+          npm ci
+          npm run build -- --base=/game-claude/test4/
+          mkdir -p ../dist/test4
+          cp -r dist/. ../dist/test4/
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
