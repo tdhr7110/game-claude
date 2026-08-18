@@ -54,6 +54,25 @@ jobs:
           mkdir -p ../dist/test
           cp -r dist/. ../dist/test/
 
+      # フェーズ2（TEST2: オートバトル+コマンド・敵ギミック検証版）を /test2/ サブパスに同梱する。
+      # TEST1・正式版とは完全に独立したブランチで、取得・ビルドに失敗しても他のデプロイは継続する。
+      - name: Checkout test2 branch (フェーズ2検証用)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: test2/chimera-butcher-phase2
+          path: test2-branch
+
+      - name: Build test2 branch into /test2/ subpath
+        if: hashFiles('test2-branch/package.json') != ''
+        continue-on-error: true
+        run: |
+          cd test2-branch
+          npm ci
+          npm run build -- --base=/game-claude/test2/
+          mkdir -p ../dist/test2
+          cp -r dist/. ../dist/test2/
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
