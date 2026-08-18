@@ -160,6 +160,19 @@ export interface BattleSnapshot {
   commands: CommandSnapshot[];
 }
 
+// TEST3フェーズ3: 演出用の構造化イベント。既存の戦闘ロジック(ダメージ計算等)には一切影響しない、
+// 表示専用の副産物として発行する。UI側は drainEvents() で毎フレーム取り出し、アニメーション・SE・
+// ダメージ数字などのトリガーとして利用する（要件17: ロジックと描画を分離する）。
+export type AttackTag = 'alpha_strike' | 'dragon_burst' | 'flame_breath' | undefined;
+export type BattleEvent =
+  | { type: 'attack'; side: 'player' | 'enemy'; targetSide: 'player' | 'enemy'; partInstanceId: string; damage: number; isCrit: boolean; isFixed: boolean; tag: AttackTag }
+  | { type: 'evade'; side: 'player' | 'enemy'; targetSide: 'player' | 'enemy' }
+  | { type: 'heal'; side: 'player' | 'enemy'; amount: number }
+  | { type: 'command'; id: string }
+  | { type: 'synergy'; side: 'player' | 'enemy'; label: string }
+  | { type: 'victory' }
+  | { type: 'defeat' };
+
 export interface PlayerBattleSetup {
   equipped: { instanceId: string; def: PartDef }[];
   coreHpBase: number;
@@ -186,6 +199,22 @@ export class BattleEngine {
   private equippedDefs: PartDef[] = [];
   private availableCommands: CommandDef[] = [];
   private commandCooldowns = new Map<string, number>();
+  // --- TEST3フェーズ3: 演出用イベントバッファ ---
+  private events: BattleEvent[] = [];
+  private currentAttackTag: AttackTag = undefined;
+
+  private pushEvent(e: BattleEvent) {
+    this.events.push(e);
+    if (this.events.length > 300) this.events.splice(0, this.events.length - 300);
+  }
+
+  // UI側が毎フレーム呼び出し、蓄積されたイベントを取り出して空にする。
+  drainEvents(): BattleEvent[] {
+    if (this.events.length === 0) return [];
+    const drained = this.events;
+    this.events = [];
+    return drained;
+  }
 
   constructor(setup: PlayerBattleSetup, enemyDef: EnemyDef, battleIndex: number, options: { verbose?: boolean } = {}) {
     this.battleIndex = battleIndex;
@@ -321,6 +350,7 @@ export class BattleEngine {
         target.reviveUsed = true;
         target.hp = Math.max(1, Math.round(target.maxHp * target.mods.reviveHpPct));
         this.pushLog(`💫 ${target.name}は致死ダメージから復活した！(HP${target.hp})`);
+        this.pushEvent({ type: 'synergy', side: target.side, label: '心臓の奇跡' });
       } else {
         target.hp = 0;
         target.isDead = true;
@@ -347,6 +377,7 @@ export class BattleEngine {
     // 回避判定
     if (Math.random() * 100 < defender.evasionPct) {
       this.pushLog(`💨 ${defender.name}は${attacker.name}の${part.name}を回避した`);
+      this.pushEvent({ type: 'evade', side: attacker.side, targetSide: defender.side });
       return;
     }
 
@@ -364,6 +395,7 @@ export class BattleEngine {
     const applied = this.dealDamage(defender, finalDamage);
     attacker.stats.damageDealt += applied;
     if (isCrit) attacker.stats.critCount += 1;
+    this.pushEvent({ type: 'attack', side: attacker.side, targetSide: defender.side, partInstanceId: part.instanceId, damage: applied, isCrit, isFixed: false, tag: this.currentAttackTag });
     if (this.verbose) {
       this.pushLog(
         `${attacker.name}の${part.icon}${part.name}: 基礎${Math.round(rawDamage)}${isCrit ? '(会心)' : ''} → 防御${defender.defense}/軽減${defender.damageReductionPct}% 適用後 ${applied}`
@@ -401,6 +433,7 @@ export class BattleEngine {
         const count = attacker.attackCountByType.arm ?? 0;
         if (count > 0 && count % proc.every === 0) {
           this.pushLog(`⚡ ${attacker.name}のコンボ発動！全ての腕・触手が追加攻撃`);
+          this.pushEvent({ type: 'synergy', side: attacker.side, label: '六腕覚醒' });
           for (const armPart of attacker.parts.filter((p) => p.type === 'arm')) {
             this.resolveAttack(attacker, defender, armPart, false);
             if (defender.isDead || attacker.isDead) return;
@@ -415,6 +448,7 @@ export class BattleEngine {
           if (others.length > 0) {
             const extra = others[Math.floor(Math.random() * others.length)];
             this.pushLog(`✨ ${attacker.name}の追撃！`);
+            this.pushEvent({ type: 'synergy', side: attacker.side, label: '十腕乱撃' });
             this.resolveAttack(attacker, defender, extra, false);
           }
         }
@@ -455,7 +489,10 @@ export class BattleEngine {
         attacker.hp = Math.min(attacker.maxHp, attacker.hp + amount);
         const healed = attacker.hp - before;
         attacker.stats.healed += healed;
-        if (healed > 0) this.pushLog(`💚 ${attacker.name}の${part.icon}${part.name}がHP${healed}回復`);
+        if (healed > 0) {
+          this.pushLog(`💚 ${attacker.name}の${part.icon}${part.name}がHP${healed}回復`);
+          this.pushEvent({ type: 'heal', side: attacker.side, amount: healed });
+        }
       } else if (e.kind === 'fixed_damage_tick') {
         if (defender.isDead) continue;
         // 固定ダメージ: 防御・被ダメージ軽減を無視する別ダメージ種
@@ -463,6 +500,7 @@ export class BattleEngine {
         const applied = this.dealDamage(defender, amount);
         attacker.stats.damageDealt += applied;
         this.pushLog(`🦴 ${attacker.name}の${part.icon}${part.name}が${defender.name}に固定${applied}ダメージ`);
+        this.pushEvent({ type: 'attack', side: attacker.side, targetSide: defender.side, partInstanceId: part.instanceId, damage: applied, isCrit: false, isFixed: true, tag: this.currentAttackTag });
         if (attacker.mods.fixedDamageGrowthPerProc > 0) {
           attacker.fixedDamageBonus += attacker.mods.fixedDamageGrowthPerProc;
         }
@@ -572,12 +610,14 @@ export class BattleEngine {
       this.player.hp = 0;
       this.status = 'lost';
       this.pushLog('💀 キメラのコアが機能を停止した…敗北');
+      this.pushEvent({ type: 'defeat' });
       return true;
     }
     if (this.enemy.isDead || this.enemy.hp <= 0) {
       this.enemy.hp = 0;
       this.status = 'won';
       this.pushLog(`🎉 ${this.enemy.name}を撃破した！`);
+      this.pushEvent({ type: 'victory' });
       return true;
     }
     return false;
@@ -670,7 +710,12 @@ export class BattleEngine {
       name: `${strongest.name}(渾身)`,
     };
     this.pushLog(`💥 ${this.enemy.name}の大技が炸裂！`);
-    this.resolveAttack(this.enemy, this.player, burstPart, false);
+    this.currentAttackTag = 'dragon_burst';
+    try {
+      this.resolveAttack(this.enemy, this.player, burstPart, false);
+    } finally {
+      this.currentAttackTag = undefined;
+    }
   }
 
   // --- コマンド実行(公開API) ---
@@ -687,6 +732,7 @@ export class BattleEngine {
     const remaining = this.commandCooldowns.get(id) ?? 0;
     if (remaining > 0) return { ok: false, reason: `クールダウン中（残り${remaining.toFixed(1)}秒）` };
 
+    this.pushEvent({ type: 'command', id });
     this.executeCommand(id);
     this.commandCooldowns.set(id, this.computeCommandCooldown(id));
     this.checkEnd();
@@ -728,28 +774,33 @@ export class BattleEngine {
   // 腕・触手が6本以上ならボーナスの一斉攻撃、10本以上なら確率でさらにもう一度発動する（要件6）。
   private executeAlphaStrike() {
     this.pushLog(`⚡ ${this.player.name}が一斉発動！`);
-    const attackParts = this.player.parts.filter((p) => p.attack > 0);
-    for (const p of attackParts) {
-      if (this.player.isDead || this.enemy.isDead) return;
-      this.resolveAttack(this.player, this.enemy, p, true);
-      p.timer = 0;
-    }
-
-    const armCount = this.equippedDefs.filter((d) => d.type === 'arm').length;
-    const armParts = this.player.parts.filter((p) => p.type === 'arm' && p.attack > 0);
-    if (armCount >= ALPHA_STRIKE_ARM_BONUS_THRESHOLD && armParts.length > 0 && !this.player.isDead && !this.enemy.isDead) {
-      this.pushLog(`⚡⚡ 腕・触手${armCount}本による追加の一斉攻撃！`);
-      for (const p of armParts) {
+    this.currentAttackTag = 'alpha_strike';
+    try {
+      const attackParts = this.player.parts.filter((p) => p.attack > 0);
+      for (const p of attackParts) {
         if (this.player.isDead || this.enemy.isDead) return;
-        this.resolveAttack(this.player, this.enemy, p, false);
+        this.resolveAttack(this.player, this.enemy, p, true);
+        p.timer = 0;
       }
-      if (armCount >= ALPHA_STRIKE_ARM_CHAIN_THRESHOLD && Math.random() < ALPHA_STRIKE_ARM_CHAIN_CHANCE && !this.player.isDead && !this.enemy.isDead) {
-        this.pushLog(`⚡⚡⚡ さらにもう一度、一斉攻撃が炸裂！`);
+
+      const armCount = this.equippedDefs.filter((d) => d.type === 'arm').length;
+      const armParts = this.player.parts.filter((p) => p.type === 'arm' && p.attack > 0);
+      if (armCount >= ALPHA_STRIKE_ARM_BONUS_THRESHOLD && armParts.length > 0 && !this.player.isDead && !this.enemy.isDead) {
+        this.pushLog(`⚡⚡ 腕・触手${armCount}本による追加の一斉攻撃！`);
         for (const p of armParts) {
           if (this.player.isDead || this.enemy.isDead) return;
           this.resolveAttack(this.player, this.enemy, p, false);
         }
+        if (armCount >= ALPHA_STRIKE_ARM_CHAIN_THRESHOLD && Math.random() < ALPHA_STRIKE_ARM_CHAIN_CHANCE && !this.player.isDead && !this.enemy.isDead) {
+          this.pushLog(`⚡⚡⚡ さらにもう一度、一斉攻撃が炸裂！`);
+          for (const p of armParts) {
+            if (this.player.isDead || this.enemy.isDead) return;
+            this.resolveAttack(this.player, this.enemy, p, false);
+          }
+        }
       }
+    } finally {
+      this.currentAttackTag = undefined;
     }
   }
 
@@ -789,7 +840,12 @@ export class BattleEngine {
       activations: 0,
     };
     this.pushLog(`🐲 ${this.player.name}が火炎放射！`);
-    this.resolveAttack(this.player, this.enemy, synthetic, false);
+    this.currentAttackTag = 'flame_breath';
+    try {
+      this.resolveAttack(this.player, this.enemy, synthetic, false);
+    } finally {
+      this.currentAttackTag = undefined;
+    }
   }
 
   // --- デバッグ用 ---

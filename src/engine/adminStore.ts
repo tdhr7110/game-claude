@@ -7,7 +7,7 @@
 //     シナジー閾値の調整(synergyPatches)を重ねた「有効な部位データ」を1箇所から提供する。
 //   - 戦闘・図鑑・ドロップ・管理画面はすべてこのストアの getPartDef 等を経由することで、
 //     同じ数値を別々に管理する状態を避ける（要件3）。
-//   - テスト版のみで使う機能のため、localStorage(chimera-battle:admin-overrides:v1)へ保存する。
+//   - テスト版のみで使う機能のため、localStorage(chimera-battle:test3:admin-overrides:v1)へ保存する。
 //     正式版のゲームデータ(data/parts.ts等の静的ファイル)には一切書き込まない。
 // ============================================================
 
@@ -18,8 +18,8 @@ import { SPECIAL_ABILITIES } from '../data/specialAbilities';
 import type { AdminPersistedState, ChangeLogEntry, PartPatch, SpecialAbilityDef } from '../data/adminTypes';
 import { applySpecialAbilityParams, readSpecialAbilityParams } from './specialAbilityHandlers';
 
-// TEST2環境専用のnamespaceを付与し、TEST1のBALANCE調整データと衝突しないようにする
-const STORAGE_KEY = 'chimera-battle:test2:admin-overrides:v1';
+// TEST3環境専用のnamespaceを付与し、TEST1/TEST2のBALANCE調整データと衝突しないようにする
+const STORAGE_KEY = 'chimera-battle:test3:admin-overrides:v1';
 const MAX_LOG_ENTRIES = 60;
 
 function emptyState(): AdminPersistedState {
