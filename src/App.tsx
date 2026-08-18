@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { GameProvider, useGame } from './ui/GameContext';
 import { PrepScreen } from './ui/components/PrepScreen';
 import { BattleScreen } from './ui/components/BattleScreen';
@@ -5,8 +6,9 @@ import { DropScreen } from './ui/components/DropScreen';
 import { ResultScreen } from './ui/components/ResultScreen';
 import { DebugPanel } from './ui/components/DebugPanel';
 import { IntroModal } from './ui/components/IntroModal';
+import { TurnBattleTestScreen } from './ui/turnTest/TurnBattleTestScreen';
 
-function Root() {
+function Root({ onOpenTurnTest }: { onOpenTurnTest: () => void }) {
   const { state } = useGame();
   return (
     <div className="app-root">
@@ -14,16 +16,20 @@ function Root() {
       {state.phase === 'battle' && <BattleScreen />}
       {state.phase === 'drop' && <DropScreen />}
       {state.phase === 'result' && <ResultScreen />}
-      <DebugPanel />
+      <DebugPanel onOpenTurnTest={onOpenTurnTest} />
       <IntroModal />
     </div>
   );
 }
 
 export default function App() {
+  // コマンドバトルTESTは既存のラン進行(GameProvider/RunState)を一切変更しない
+  // 独立したオーバーレイ画面として重ねて表示する（既存のオートバトルは裏で維持されたまま）。
+  const [showTurnTest, setShowTurnTest] = useState(false);
   return (
     <GameProvider>
-      <Root />
+      <Root onOpenTurnTest={() => setShowTurnTest(true)} />
+      {showTurnTest && <TurnBattleTestScreen onExit={() => setShowTurnTest(false)} />}
     </GameProvider>
   );
 }

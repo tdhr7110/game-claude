@@ -3,7 +3,7 @@ import { useGame } from '../GameContext';
 import { ALL_PARTS } from '../../data/parts';
 import type { SpeedSetting } from '../../engine/battle';
 
-export function DebugPanel() {
+export function DebugPanel({ onOpenTurnTest }: { onOpenTurnTest?: () => void }) {
   const { state, dispatch, battleEngineRef } = useGame();
   const [open, setOpen] = useState(false);
   const [selectedPartId, setSelectedPartId] = useState(ALL_PARTS[0]?.id ?? '');
@@ -135,6 +135,17 @@ export function DebugPanel() {
       <div className="debug-panel__group muted">
         フェーズ: {state.phase} / 戦闘番号: {state.battleIndex} / コアHP: {state.coreHp}
       </div>
+
+      {onOpenTurnTest && (
+        <div className="debug-panel__group">
+          <label>検証中の別モード</label>
+          <div className="debug-panel__row">
+            <button className="btn btn--small" onClick={onOpenTurnTest}>
+              ⚔️ コマンドバトルTESTを開く
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

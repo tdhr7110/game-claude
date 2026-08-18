@@ -1,0 +1,423 @@
+/* コマンドバトルTEST専用スタイル。既存 index.css のクラスとは重複しない
+   .turn-test プレフィックスの下にすべて収め、本線UIへの影響をゼロにする。 */
+
+.turn-test {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: #0f1220;
+  color: #e5e7eb;
+  overflow-y: auto;
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+}
+
+.turn-test__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #171a2e;
+  border-bottom: 1px solid #2c2f4a;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.turn-test__header h1 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.turn-test__badge {
+  font-size: 0.7rem;
+  color: #f0abfc;
+  background: #3b0764;
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: 8px;
+}
+
+.turn-test__body {
+  flex: 1;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.turn-test__section {
+  background: #171a2e;
+  border: 1px solid #2c2f4a;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.turn-test__section h2 {
+  font-size: 0.85rem;
+  margin: 0 0 8px;
+  color: #a5b4fc;
+}
+
+.turn-test__enemy-picks {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.turn-test-btn {
+  background: #23264a;
+  color: #e5e7eb;
+  border: 1px solid #383c66;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.turn-test-btn:hover:not(:disabled) {
+  background: #2f3363;
+}
+
+.turn-test-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.turn-test-btn--small {
+  padding: 4px 8px;
+  font-size: 0.72rem;
+}
+
+.turn-test-btn--danger {
+  border-color: #7f1d1d;
+  color: #fca5a5;
+}
+
+/* --- 戦闘画面 --- */
+
+.turn-battle__combatants {
+  display: flex;
+  gap: 10px;
+}
+
+.turn-combatant {
+  flex: 1;
+  background: #12142450;
+  border: 1px solid #2c2f4a;
+  border-radius: 10px;
+  padding: 8px 10px;
+  min-width: 0;
+}
+
+.turn-combatant__name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.turn-hp-bar {
+  position: relative;
+  height: 14px;
+  background: #1f2138;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 6px 0 4px;
+  border: 1px solid #333758;
+}
+
+.turn-hp-bar__fill {
+  height: 100%;
+  transition: width 0.35s ease;
+}
+
+.turn-hp-bar__fill--player {
+  background: linear-gradient(90deg, #4ade80, #22c55e);
+}
+
+.turn-hp-bar__fill--enemy {
+  background: linear-gradient(90deg, #f87171, #ef4444);
+}
+
+.turn-hp-bar__label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.62rem;
+  color: #f9fafb;
+  text-shadow: 0 1px 1px #000;
+}
+
+.turn-poison-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  background: #14532d;
+  color: #86efac;
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+.turn-telegraph {
+  margin-top: 12px;
+  background: #1f1330;
+  border: 1px dashed #7c3aed;
+  border-radius: 10px;
+  padding: 10px 12px;
+  text-align: center;
+  font-size: 0.82rem;
+  color: #ddd6fe;
+}
+
+.turn-stage {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 6px 4px;
+}
+
+.turn-stage__result {
+  animation: turn-pop 0.35s ease;
+}
+
+@keyframes turn-pop {
+  0% {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.turn-stage__skill-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #f0abfc;
+}
+
+.turn-stage__hits {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.turn-hit {
+  font-size: 0.8rem;
+  color: #fca5a5;
+  background: #2a1220;
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+
+.turn-hit--big {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #fbbf24;
+  background: transparent;
+  padding: 0 3px;
+}
+
+.turn-stage__enemy-line {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: #93c5fd;
+}
+
+.turn-commands {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.turn-command {
+  background: #1c1f3a;
+  border: 1px solid #383c66;
+  border-radius: 10px;
+  padding: 8px 6px;
+  color: #e5e7eb;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 108px;
+}
+
+.turn-command:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.turn-command--glow {
+  animation: turn-glow 0.6s ease;
+  border-color: #f0abfc;
+}
+
+@keyframes turn-glow {
+  0% {
+    box-shadow: 0 0 0 rgba(240, 171, 252, 0);
+  }
+  40% {
+    box-shadow: 0 0 14px rgba(240, 171, 252, 0.85);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(240, 171, 252, 0);
+  }
+}
+
+.turn-command__slot {
+  font-size: 0.62rem;
+  color: #a5b4fc;
+}
+
+.turn-command__name {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.turn-command__desc {
+  font-size: 0.65rem;
+  color: #9ca3af;
+  line-height: 1.25;
+}
+
+.turn-command__power {
+  font-size: 0.68rem;
+  color: #fca5a5;
+  margin-top: auto;
+}
+
+.turn-command__cd {
+  font-size: 0.65rem;
+  color: #fbbf24;
+}
+
+.turn-command__reason {
+  font-size: 0.6rem;
+  color: #f87171;
+}
+
+.turn-log {
+  max-height: 110px;
+  overflow-y: auto;
+  font-size: 0.7rem;
+  color: #9ca3af;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.turn-evolution-toast {
+  position: fixed;
+  top: 54px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #3b0764;
+  border: 1px solid #a855f7;
+  border-radius: 10px;
+  padding: 8px 16px;
+  text-align: center;
+  z-index: 10;
+  font-size: 0.78rem;
+  animation: turn-pop 0.35s ease;
+}
+
+.turn-evolution-toast__arrow {
+  color: #f0abfc;
+  font-weight: 700;
+}
+
+.turn-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 20, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+
+.turn-overlay__card {
+  background: #171a2e;
+  border: 1px solid #383c66;
+  border-radius: 14px;
+  padding: 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.turn-overlay__title {
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
+.turn-parts-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.turn-part-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #12142450;
+  border: 1px solid #2c2f4a;
+  border-radius: 8px;
+  padding: 4px 6px;
+  font-size: 0.72rem;
+}
+
+.turn-part-chip__count {
+  min-width: 1.2em;
+  text-align: center;
+  font-weight: 700;
+}
+
+.turn-skill-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.68rem;
+}
+
+.turn-skill-table th,
+.turn-skill-table td {
+  border-bottom: 1px solid #2c2f4a;
+  padding: 4px 4px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.turn-skill-table tr.turn-skill-table__active {
+  background: #2a1a4a;
+}
+
+@media (max-width: 480px) {
+  .turn-command {
+    min-height: 120px;
+  }
+}
