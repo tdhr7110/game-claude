@@ -25,6 +25,7 @@ export interface CombatantModifiers {
   reviveHpPct: number | null;
   battleStartDefense: number;
   typeDoubleActivationChance: Partial<Record<PartType, number>>;
+  typeDoubleActivationMaxChain: Partial<Record<PartType, number>>; // 暴走遺伝子のmaxChain（省略時は1=従来通り1回だけ追加発動）
   onTypeAttackCountProcs: { targetType: PartType; every: number }[];
   onTypeAttackChanceProcs: { targetType: PartType; chance: number }[];
   auraOnHitByType: Partial<Record<PartType, OnHitEffect[]>>;
@@ -56,6 +57,7 @@ export function emptyModifiers(): CombatantModifiers {
     reviveHpPct: null,
     battleStartDefense: 0,
     typeDoubleActivationChance: {},
+    typeDoubleActivationMaxChain: {},
     onTypeAttackCountProcs: [],
     onTypeAttackChanceProcs: [],
     auraOnHitByType: {},
@@ -190,6 +192,7 @@ export function computeModifiers(equippedDefs: PartDef[], synergies: ActiveSyner
       if (e.kind === 'double_activation_chance_all') {
         for (const t of ['arm', 'head', 'heart', 'leg', 'skin'] as PartType[]) {
           mods.typeDoubleActivationChance[t] = Math.max(mods.typeDoubleActivationChance[t] ?? 0, e.chance);
+          mods.typeDoubleActivationMaxChain[t] = Math.max(mods.typeDoubleActivationMaxChain[t] ?? 1, e.maxChain ?? 1);
         }
         continue;
       }

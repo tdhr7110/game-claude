@@ -5,6 +5,7 @@ import { previewCostForNewPart } from '../../engine/capacity';
 import { getCapacityInfo } from '../../engine/run';
 import { PartCard } from './PartCard';
 import { PartDetailPanel } from './PartDetailPanel';
+import { computeSynergyDelta } from '../synergyPreview';
 
 export function DropScreen() {
   const { state, dispatch } = useGame();
@@ -18,6 +19,7 @@ export function DropScreen() {
   const compareWith = selectedDef ? eqDefs.filter((d) => d.type === selectedDef.type && d.id !== selectedDef.id) : [];
   const previewCost = selectedDef ? previewCostForNewPart(selectedDef, eqDefs) : 0;
   const canEquip = selectedDef ? previewCost <= capacity.free : false;
+  const synergyDelta = useMemo(() => (selectedDef ? computeSynergyDelta(eqDefs, selectedDef) : []), [selectedDef, eqDefs]);
 
   if (!hasCandidates) {
     return (
@@ -40,35 +42,56 @@ export function DropScreen() {
       </header>
       <div className="drop-candidates">
         {state.dropCandidates.map((def) => (
-          <PartCard key={def.id} def={def} selected={selectedDefId === def.id} onClick={() => setSelectedDefId(def.id)} />
+          <PartCard
+            key={def.id}
+            def={def}
+            badge={def.rarity === 'rare' ? '★' : undefined}
+            selected={selectedDefId === def.id}
+            onClick={() => setSelectedDefId(def.id)}
+          />
         ))}
       </div>
 
       {selectedDef && (
         <div className="drop-detail">
-          <PartDetailPanel def={selectedDef} cost={previewCost} compareWith={compareWith} />
-          <div className="drop-actions">
-            <button
-              className="btn btn--primary"
-              disabled={!canEquip}
-              title={!canEquip ? `接続容量が足りません（必要${previewCost} / 空き${capacity.free}）` : undefined}
-              onClick={() => dispatch({ type: 'ACCEPT_DROP', defId: selectedDef.id, wantEquip: true })}
-            >
-              すぐ装着する
-            </button>
-            <button className="btn" onClick={() => dispatch({ type: 'ACCEPT_DROP', defId: selectedDef.id, wantEquip: false })}>
-              インベントリに保管する
-            </button>
-          </div>
+          <PartDetailPanel
+            def={selectedDef}
+            cost={previewCost}
+            compareWith={compareWith}
+            synergyDelta={synergyDelta}
+            actions={
+              <div className="drop-actions">
+                <button
+                  className="btn btn--primary btn--large btn--block"
+                  disabled={!canEquip}
+                  title={!canEquip ? `接続容量が足りません（必要${previewCost} / 空き${capacity.free}）` : undefined}
+                  onClick={() => dispatch({ type: 'ACCEPT_DROP', defId: selectedDef.id, wantEquip: true })}
+                >
+                  すぐ装着する
+                </button>
+                <button
+                  className="btn btn--block"
+                  onClick={() => dispatch({ type: 'ACCEPT_DROP', defId: selectedDef.id, wantEquip: false })}
+                >
+                  インベントリに保管する
+                </button>
+                <button className="btn btn--ghost btn--block" onClick={() => dispatch({ type: 'SKIP_DROP' })}>
+                  どれも受け取らない
+                </button>
+              </div>
+            }
+          />
           {!canEquip && (
             <p className="error-banner">接続容量が足りないため装着できません（必要{previewCost} / 空き{capacity.free}）。保管して後で入れ替えられます。</p>
           )}
         </div>
       )}
 
-      <button className="btn btn--ghost" onClick={() => dispatch({ type: 'SKIP_DROP' })}>
-        どれも受け取らない
-      </button>
+      {!selectedDef && (
+        <button className="btn btn--ghost" onClick={() => dispatch({ type: 'SKIP_DROP' })}>
+          どれも受け取らない
+        </button>
+      )}
     </div>
   );
 }

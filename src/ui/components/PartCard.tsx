@@ -11,25 +11,29 @@ interface PartCardProps {
   onClick?: () => void;
 }
 
+// TEST4: 正式な部位イラスト(def.image)が用意され次第、アイコン絵文字から自動的に切り替わる。
 export function PartCard({ def, cost, selected, disabled, compact, badge, onClick }: PartCardProps) {
   const effectiveCost = cost ?? def.cost;
   return (
     <button
       type="button"
-      className={`part-card${selected ? ' part-card--selected' : ''}${disabled ? ' part-card--disabled' : ''}${compact ? ' part-card--compact' : ''}`}
-      style={{ borderColor: RARITY_COLORS[def.rarity], background: `linear-gradient(160deg, ${def.color}22, transparent)` }}
+      className={`part-card part-card--rarity-${def.rarity}${selected ? ' part-card--selected' : ''}${disabled ? ' part-card--disabled' : ''}${compact ? ' part-card--compact' : ''}`}
       onClick={onClick}
       title={`${def.name}\n${def.description}`}
     >
       {badge && <span className="part-card__badge">{badge}</span>}
-      <div className="part-card__icon" style={{ color: def.color }}>
-        {def.icon}
-      </div>
+      <span className="part-card__rarity-tag" style={{ color: RARITY_COLORS[def.rarity] }}>
+        {rarityLabel(def.rarity)}
+      </span>
+      {def.image ? (
+        <img className="part-card__image" src={def.image} alt={def.name} />
+      ) : (
+        <div className="part-card__icon" style={{ color: def.color }}>
+          {def.icon}
+        </div>
+      )}
       <div className="part-card__name">{def.name}</div>
       <div className="part-card__meta">
-        <span className="chip" style={{ color: RARITY_COLORS[def.rarity] }}>
-          {rarityLabel(def.rarity)}
-        </span>
         <span className="chip">
           {TYPE_ICONS[def.type]} {typeLabel(def.type)}
         </span>
