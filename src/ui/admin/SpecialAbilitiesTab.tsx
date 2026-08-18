@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useGame } from '../GameContext';
-import { getSpecialAbilities, getSpecialAbilityCurrentParams, setSpecialAbilityParams, tryGetPartDef } from '../../engine/adminStore';
+import { getBasePartDef, getSpecialAbilities, getSpecialAbilityCurrentParams, setSpecialAbilityParams, tryGetPartDef } from '../../engine/adminStore';
+import { readSpecialAbilityParams } from '../../engine/specialAbilityHandlers';
 
 export function SpecialAbilitiesTab() {
   const { dispatch } = useGame();
@@ -23,7 +24,10 @@ export function SpecialAbilitiesTab() {
       <div className="admin-special-list">
         {abilities.map((ability) => {
           const part = tryGetPartDef(ability.id);
+          const basePart = getBasePartDef(ability.id);
+          // 現在ゲームが実際に使用している値（テスト上書き適用後）を毎回読み直す。
           const currentParams = getSpecialAbilityCurrentParams(ability.id);
+          const baseParams = basePart ? readSpecialAbilityParams(basePart, ability) : null;
           return (
             <div key={ability.id} className="admin-special-card">
               <div className="admin-special-card__header">
@@ -44,7 +48,24 @@ export function SpecialAbilitiesTab() {
                 ))}
               </div>
 
+              {baseParams && ability.editableParams.some((p) => baseParams[p.key] !== currentParams[p.key]) && (
+                <div className="admin-diff">
+                  <div className="muted">正式値との差分（変更済み）:</div>
+                  {ability.editableParams
+                    .filter((p) => baseParams[p.key] !== currentParams[p.key])
+                    .map((p) => (
+                      <div key={p.key} className="admin-diff-row">
+                        {p.label}: <span className="admin-diff-before">{baseParams[p.key]}</span> →{' '}
+                        <span className="admin-diff-after">{currentParams[p.key]}</span>
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              {/* key に現在値を含めることで、他の操作（JSONインポート・リセット等）で値が変わった際に
+                  フォームを作り直し、常に最新値を表示させる（保存直後も含め値が古いまま残らないようにする）。 */}
               <ParamForm
+                key={JSON.stringify(currentParams)}
                 abilityId={ability.id}
                 params={ability.editableParams}
                 initialValues={currentParams}

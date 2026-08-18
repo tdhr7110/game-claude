@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useGame } from '../GameContext';
 import {
   applyPartPatch,
@@ -68,6 +68,9 @@ export function PartsTab() {
     });
   }, [parts, nameQuery, rarityFilter, speciesFilter, typeFilter, enabledFilter]);
 
+  // 部位を選択する（= 現在ゲームが実際に参照している最新値を編集欄へ読み込む）。
+  // 別の部位を選んだ場合はもちろん、「同じ部位を選び直す」場合も必ずこの関数を通ることで、
+  // ストアの最新状態をあらためて読み込み直す（再読み込みボタン・複製後の選択・保存後の再選択、すべて共通のこの経路を使う）。
   function selectPart(id: string) {
     const p = parts.find((x) => x.id === id);
     if (!p) return;
@@ -77,6 +80,15 @@ export function PartsTab() {
     setError(null);
     setNotice(null);
   }
+
+  // 開発者画面を開いた時点で、一覧の先頭（=現在の絞り込み条件に合致する最初の部位）の
+  // 「現在ゲームが実際に使用している値」を自動的に編集欄へセットする。
+  useEffect(() => {
+    if (selectedId === null && !isCreating && filtered.length > 0) {
+      selectPart(filtered[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function startCreate() {
     setSelectedId(null);
@@ -366,6 +378,13 @@ export function PartsTab() {
               </button>
               {!isCreating && selectedId && (
                 <>
+                  <button
+                    className="btn"
+                    onClick={() => selectPart(selectedId)}
+                    title="編集中に他の操作（JSONインポート等）で値が変わった場合に、現在の最新値を読み込み直します"
+                  >
+                    🔄 最新の値を再読み込み
+                  </button>
                   <button className="btn" onClick={() => handleDuplicate(selectedId)}>
                     📋 複製して編集
                   </button>

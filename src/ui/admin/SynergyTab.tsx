@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { getPartTypeSynergies, getSpeciesSynergies, patchSynergyTier } from '../../engine/adminStore';
+import { PART_TYPE_SYNERGIES, SPECIES_SYNERGIES } from '../../data/synergies';
 import { PART_TYPE_LABELS, SPECIES_LABELS, type PartType, type Species } from '../../data/types';
 
 // 「腕6本以上なら攻撃速度+30%」のような部位数条件は、既存のシナジー閾値テーブル
@@ -26,8 +27,11 @@ export function SynergyTab() {
           <div className="admin-synergy-group__title">{PART_TYPE_LABELS[t]}</div>
           {partTypeSynergies[t].map((tier, i) => (
             <TierRow
-              key={i}
+              // 現在値をkeyに含めることで、保存直後・他タブでのリセット/インポート後も
+              // 必ず最新値でフォームが作り直される（古いuseState初期値が残らないようにする）。
+              key={`${i}_${tier.count}_${JSON.stringify(tier.effect)}`}
               tier={tier}
+              baseTier={PART_TYPE_SYNERGIES[t][i]}
               onSave={(count, effectPatch) => {
                 patchSynergyTier('partType', t, i, { count, effectPatch });
                 tick((n) => n + 1);
@@ -43,8 +47,9 @@ export function SynergyTab() {
           <div className="admin-synergy-group__title">{SPECIES_LABELS[s]}</div>
           {speciesSynergies[s].map((tier, i) => (
             <TierRow
-              key={i}
+              key={`${i}_${tier.count}_${JSON.stringify(tier.effect)}`}
               tier={tier}
+              baseTier={SPECIES_SYNERGIES[s][i]}
               onSave={(count, effectPatch) => {
                 patchSynergyTier('species', s, i, { count, effectPatch });
                 tick((n) => n + 1);
@@ -59,14 +64,20 @@ export function SynergyTab() {
 
 function TierRow({
   tier,
+  baseTier,
   onSave,
 }: {
   tier: { count: number; description: string; effect: Record<string, unknown> };
+  baseTier?: { count: number; effect: Record<string, unknown> };
   onSave: (count: number, effectPatch: Record<string, number>) => void;
 }) {
   const [count, setCount] = useState(tier.count);
   const numericFields = Object.entries(tier.effect).filter(([k, v]) => k !== 'kind' && typeof v === 'number') as [string, number][];
   const [values, setValues] = useState<Record<string, number>>(Object.fromEntries(numericFields));
+
+  const changedFromBase =
+    baseTier &&
+    (baseTier.count !== tier.count || numericFields.some(([key, v]) => (baseTier.effect as Record<string, unknown>)[key] !== v));
 
   return (
     <div className="admin-tier-row">
@@ -84,6 +95,7 @@ function TierRow({
       <button className="btn btn--small" onClick={() => onSave(count, values)}>
         保存
       </button>
+      {changedFromBase && baseTier && <span className="chip">変更済み（正式値: {baseTier.count}個）</span>}
     </div>
   );
 }
