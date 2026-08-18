@@ -31,9 +31,14 @@ export function CommandEditModal({ onClose }: CommandEditModalProps) {
   }
 
   return (
-    <div className="intro-overlay" onClick={onClose}>
-      <div className="intro-card cmd-edit" onClick={(e) => e.stopPropagation()}>
-        <div className="intro-card__title">⚡ コマンド編集</div>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card cmd-edit" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-card__header">
+          <h2 style={{ margin: 0, fontSize: '1.1em' }}>⚡ コマンド編集</h2>
+          <button className="modal-card__close" onClick={onClose}>
+            ✕
+          </button>
+        </div>
         <p className="muted cmd-edit__hint">
           最大{COMMAND_BALANCE.maxCommandSlots}個まで装備できます。装着中の部位によって使える技（進化形）が自動的に決まります。
         </p>
@@ -77,9 +82,6 @@ export function CommandEditModal({ onClose }: CommandEditModalProps) {
           ))}
         </div>
 
-        <button className="btn btn--primary btn--large" onClick={onClose}>
-          閉じる
-        </button>
       </div>
     </div>
   );

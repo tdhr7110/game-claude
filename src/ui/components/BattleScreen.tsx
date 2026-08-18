@@ -4,7 +4,7 @@ import { BattleEngine, type BattleSnapshot, type CombatantSnapshot, type Command
 import { getPartDef } from '../../data/parts';
 import { CORE_HP_BASE, BASE_DEFENSE, getCapacityInfo, TOTAL_BATTLES } from '../../engine/run';
 import { ChimeraAvatar } from './ChimeraAvatar';
-import type { PartDef } from '../../data/types';
+import { CapacityBar } from './CapacityBar';
 import { formatBigNumber } from '../format';
 import '../commandSystem.css';
 
@@ -34,6 +34,20 @@ function HpBar({ hp, maxHp, color, shield }: { hp: number; maxHp: number; color:
   );
 }
 
+function StatusRow({ c }: { c: CombatantSnapshot }) {
+  if (c.poison === 0 && !c.burn) return null;
+  return (
+    <div className="status-row">
+      {c.poison > 0 && <span className="status-badge status-badge--poison">☠️毒{c.poison}</span>}
+      {c.burn && (
+        <span className="status-badge status-badge--burn">
+          🔥炎上{Math.round(c.burn.dps * 10) / 10}/秒(残{Math.round(c.burn.timeLeft * 10) / 10}s)
+        </span>
+      )}
+    </div>
+  );
+}
+
 function EffectBadges({ effects }: { effects: CombatantSnapshot['activeEffects'] }) {
   if (effects.length === 0) return null;
   return (
@@ -47,52 +61,12 @@ function EffectBadges({ effects }: { effects: CombatantSnapshot['activeEffects']
   );
 }
 
-function CombatantPanel({ c, side, avatarDefs }: { c: CombatantSnapshot; side: 'player' | 'enemy'; avatarDefs?: PartDef[] }) {
+function CombatantStatsMini({ c }: { c: CombatantSnapshot }) {
   return (
-    <div className={`combatant-panel combatant-panel--${side}`}>
-      <div className="combatant-panel__name">
-        {side === 'player' ? '🧬' : '👹'} {c.name} {c.isDead && <span className="danger-text">（撃破）</span>}
-      </div>
-      {avatarDefs && <ChimeraAvatar defs={avatarDefs} size="sm" />}
-      <HpBar hp={c.hp} maxHp={c.maxHp} color={side === 'player' ? '#4ade80' : '#f87171'} shield={c.shieldValue} />
-      <div className="combatant-panel__row">
-        <span title="防御力">🛡️{c.defense}</span>
-        <span title="被ダメージ軽減率">📉{c.damageReductionPct}%</span>
-        <span title="回避率">💨{c.evasionPct}%</span>
-        {c.critPct > 0 && (
-          <span title="会心率（頭・口・目の装着数で上昇）" className="crit-stat">
-            💥{c.critPct}%
-          </span>
-        )}
-      </div>
-      <div className="combatant-panel__row">
-        {c.poison > 0 && <span className="status-badge status-badge--poison">☠️毒{c.poison}</span>}
-        {c.burn && (
-          <span className="status-badge status-badge--burn">
-            🔥炎上{Math.round(c.burn.dps * 10) / 10}/秒(残{Math.round(c.burn.timeLeft * 10) / 10}s)
-          </span>
-        )}
-        {c.poison === 0 && !c.burn && <span className="muted">状態異常なし</span>}
-      </div>
-      <EffectBadges effects={c.activeEffects} />
-      <div className="combatant-panel__row">
-        <span>⚔️与ダメ{c.stats.damageDealt}</span>
-        <span>💚回復{c.stats.healed}</span>
-        {c.stats.critCount > 0 && <span className="crit-stat">💥会心×{c.stats.critCount}</span>}
-      </div>
-      <div className="part-activity-list">
-        {c.parts.length === 0 && <p className="muted">攻撃・パッシブ部位なし</p>}
-        {c.parts.map((p) => (
-          <div key={p.instanceId} className="part-activity">
-            <span className="part-activity__icon">{p.icon}</span>
-            <span className="part-activity__name">{p.name}</span>
-            <div className="part-activity__bar">
-              <div className="part-activity__bar-fill" style={{ width: `${p.progress * 100}%` }} />
-            </div>
-            <span className="part-activity__count">×{p.activations}</span>
-          </div>
-        ))}
-      </div>
+    <div className="battle-stage__stats-mini muted">
+      🛡️{c.defense} ・ 📉{c.damageReductionPct}% ・ 💨{c.evasionPct}%
+      {c.critPct > 0 && ` ・ 💥${c.critPct}%`} ・ ⚔️与ダメ{c.stats.damageDealt} ・ 💚回復{c.stats.healed}
+      {c.stats.critCount > 0 && ` ・ 💥会心×${c.stats.critCount}`}
     </div>
   );
 }
@@ -122,7 +96,7 @@ function CommandButton({ slot, glow, onUse }: { slot: CommandSlotSnapshot | null
   return (
     <button
       className={`cmd-button${slot.usable ? ' cmd-button--usable' : ''}${gaugeShort ? ' cmd-button--nogauge' : ''}${glow ? ' cmd-button--glow' : ''}`}
-      style={{ borderColor: slot.color }}
+      style={{ ['--command-color' as string]: slot.color, ['--command-glow' as string]: `${slot.color}66`, borderColor: slot.color }}
       disabled={!slot.usable}
       onClick={onUse}
       title={slot.description}
@@ -162,13 +136,34 @@ function ResultBreakdown({ snapshot }: { snapshot: BattleSnapshot }) {
   );
 }
 
+function PartActivityList({ label, parts }: { label: string; parts: CombatantSnapshot['parts'] }) {
+  return (
+    <div className="part-activity-list">
+      <div className="part-activity-list__label">{label}</div>
+      {parts.length === 0 && <p className="muted">攻撃・パッシブ部位なし</p>}
+      {parts.map((p) => (
+        <div key={p.instanceId} className="part-activity">
+          <span className="part-activity__icon">{p.icon}</span>
+          <span className="part-activity__name">{p.name}</span>
+          <div className="part-activity__bar">
+            <div className="part-activity__bar-fill" style={{ width: `${p.progress * 100}%` }} />
+          </div>
+          <span className="part-activity__count">×{p.activations}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function BattleScreen() {
   const { state, dispatch, battleEngineRef, battleResetSignal } = useGame();
   const [snapshot, setSnapshot] = useState<BattleSnapshot | null>(null);
   const [glowSlot, setGlowSlot] = useState<number | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
   const avatarDefs = useMemo(() => state.equipped.map((i) => getPartDef(i.defId)), [state.equipped]);
+  const capacity = useMemo(() => getCapacityInfo(state), [state]);
 
   useEffect(() => {
     if (!state.currentEnemy) return;
@@ -225,63 +220,118 @@ export function BattleScreen() {
     setSnapshot(engine.getSnapshot());
   }
 
+  const enemyDef = state.currentEnemy;
+
   return (
-    <div className="screen battle-screen">
-      <header className="screen__header">
+    <div className="screen battle-screen-v2">
+      <header className="screen__header battle-header-v2">
         <h1>⚔️ 第{snapshot.battleIndex}戦 / 全{TOTAL_BATTLES}戦</h1>
-        <div className="muted">経過時間 {snapshot.time.toFixed(1)}秒</div>
+        <div className="battle-header-v2__right">
+          <span className="muted">{snapshot.time.toFixed(1)}秒</span>
+        </div>
       </header>
 
-      <div className="battle-layout">
-        <CombatantPanel c={snapshot.player} side="player" avatarDefs={avatarDefs} />
-        <div className="battle-center">
-          <div className="battle-center__vs">VS</div>
+      <div className="battle-stage">
+        <div className="battle-stage__enemy-row">
+          <div className="battle-stage__name">
+            {enemyDef?.icon} {snapshot.enemy.name} {snapshot.enemy.isDead && <span className="danger-text">（撃破）</span>}
+          </div>
+          <HpBar hp={snapshot.enemy.hp} maxHp={snapshot.enemy.maxHp} color="#f87171" shield={snapshot.enemy.shieldValue} />
+          <StatusRow c={snapshot.enemy} />
+          <EffectBadges effects={snapshot.enemy.activeEffects} />
+        </div>
+
+        <div className="battle-stage__arena">
+          <div className="battle-stage__enemy-figure">
+            <div
+              className="cmd-enemy-figure"
+              style={{ background: `radial-gradient(circle, ${enemyDef?.color ?? '#7c3aed'}33, transparent 70%)` }}
+            >
+              <span style={{ opacity: snapshot.enemy.isDead ? 0.35 : 1 }}>{enemyDef?.icon ?? '👹'}</span>
+            </div>
+          </div>
+
           {snapshot.commandsEnabled && snapshot.lastCommandEvent && (
             <div key={snapshot.lastCommandEvent.time} className={`cmd-stage-banner cmd-stage-banner--${snapshot.lastCommandEvent.category}`}>
               {snapshot.lastCommandEvent.name}
             </div>
           )}
+
+          <div className="battle-stage__player-figure">
+            <ChimeraAvatar defs={avatarDefs} size="sm" />
+          </div>
+
           {snapshot.status !== 'ongoing' && (
-            <div className="battle-overlay">
-              <div className="battle-overlay__title">{snapshot.status === 'won' ? '🎉 勝利！' : '💀 敗北…'}</div>
-              <ResultBreakdown snapshot={snapshot} />
-              <button className="btn btn--primary btn--large" onClick={handleContinue}>
-                続ける
-              </button>
+            <div className="modal-overlay">
+              <div className="modal-card" style={{ textAlign: 'center' }}>
+                <div className="battle-overlay__title">{snapshot.status === 'won' ? '🎉 勝利！' : '💀 敗北…'}</div>
+                <ResultBreakdown snapshot={snapshot} />
+                <button className="btn btn--primary btn--large btn--block" onClick={handleContinue}>
+                  続ける
+                </button>
+              </div>
             </div>
           )}
         </div>
-        <CombatantPanel c={snapshot.enemy} side="enemy" />
+
+        <div className="battle-stage__player-row">
+          <div className="battle-stage__name">
+            🧬 {snapshot.player.name} {snapshot.player.isDead && <span className="danger-text">（機能停止）</span>}
+          </div>
+          <HpBar hp={snapshot.player.hp} maxHp={snapshot.player.maxHp} color="#4ade80" shield={snapshot.player.shieldValue} />
+          <StatusRow c={snapshot.player} />
+          <EffectBadges effects={snapshot.player.activeEffects} />
+        </div>
       </div>
 
-      {snapshot.commandsEnabled && (
-        <div className="cmd-battle-panel">
-          <MetabolismBar current={snapshot.metabolism.current} max={snapshot.metabolism.max} />
-          <div className="cmd-grid-2x2">
-            {snapshot.commandSlots.map((slot, i) => (
-              <CommandButton key={i} slot={slot} glow={glowSlot === i} onUse={() => activateCommand(i)} />
+      <div className="battle-bottom">
+        <div className="battle-bottom__capacity">
+          <CapacityBar used={capacity.used} total={capacity.total} compact />
+        </div>
+
+        {snapshot.commandsEnabled && (
+          <div className="cmd-battle-panel">
+            <MetabolismBar current={snapshot.metabolism.current} max={snapshot.metabolism.max} />
+            <div className="cmd-grid-2x2">
+              {snapshot.commandSlots.map((slot, i) => (
+                <CommandButton key={i} slot={slot} glow={glowSlot === i} onUse={() => activateCommand(i)} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="battle-bottom__controls">
+          <div className="speed-controls">
+            速度:
+            {SPEED_OPTIONS.map((s) => (
+              <button key={s} className={`btn btn--small${snapshot.speed === s ? ' btn--active' : ''}`} onClick={() => setSpeed(s)}>
+                {s === 0 ? '⏸' : `${s}x`}
+              </button>
             ))}
           </div>
+          <button className="btn btn--small" onClick={() => setShowDetails((v) => !v)}>
+            {showDetails ? '詳細を閉じる ▲' : '詳細を見る ▼'}
+          </button>
         </div>
-      )}
 
-      <footer className="battle-footer">
-        <div className="speed-controls">
-          速度:
-          {SPEED_OPTIONS.map((s) => (
-            <button key={s} className={`btn btn--small${snapshot.speed === s ? ' btn--active' : ''}`} onClick={() => setSpeed(s)}>
-              {s === 0 ? '⏸ 一時停止' : `${s}x`}
-            </button>
-          ))}
-        </div>
-        <div className="battle-log">
-          {snapshot.log.map((line) => (
-            <div key={line} className="battle-log__line">
-              {line}
+        {showDetails && (
+          <div className="battle-details">
+            <CombatantStatsMini c={snapshot.player} />
+            <CombatantStatsMini c={snapshot.enemy} />
+            <div className="battle-details__stats">
+              <PartActivityList label="自分の部位" parts={snapshot.player.parts} />
+              <PartActivityList label="敵の部位" parts={snapshot.enemy.parts} />
             </div>
-          ))}
-        </div>
-      </footer>
+            <div className="battle-log">
+              {snapshot.log.map((line) => (
+                <div key={line} className="battle-log__line">
+                  {line}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

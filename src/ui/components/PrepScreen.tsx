@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../GameContext';
+import type { RunState } from '../../engine/run';
 import { equippedDefs, getCapacityInfo, getMaxHp, battleSlotLabel, battleSlotLabelForIndex, BATTLE_SEQUENCE, TOTAL_BATTLES } from '../../engine/run';
 import { getPartDef } from '../../data/parts';
 import { computeActiveSynergies } from '../../engine/synergyEngine';
@@ -13,9 +14,25 @@ import { ChimeraAvatar } from './ChimeraAvatar';
 import { ChimeraGalleryModal } from './ChimeraGalleryModal';
 import { CommandEditModal } from './CommandEditModal';
 
+type PrepTab = 'status' | 'parts' | 'synergy' | 'menu';
+
+const NAV_ITEMS: { id: PrepTab; icon: string; label: string }[] = [
+  { id: 'status', icon: '❤️', label: 'ステータス' },
+  { id: 'parts', icon: '🦴', label: '部位' },
+  { id: 'synergy', icon: '⭐', label: 'シナジー' },
+  { id: 'menu', icon: '☰', label: 'メニュー' },
+];
+
+interface SelectedPart {
+  instanceId: string;
+  defId: string;
+  source: 'equipped' | 'inventory';
+}
+
 export function PrepScreen() {
   const { state, dispatch, equipError, setEquipError, setShowIntro, chimeraGallery } = useGame();
-  const [selectedDefId, setSelectedDefId] = useState<string | null>(null);
+  const [tab, setTab] = useState<PrepTab>('parts');
+  const [selected, setSelected] = useState<SelectedPart | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [showCommandEdit, setShowCommandEdit] = useState(false);
 
@@ -26,13 +43,15 @@ export function PrepScreen() {
   const maxHp = getMaxHp(state);
   const slotLabel = battleSlotLabel(state);
 
-  const selectedDef = selectedDefId ? getPartDef(selectedDefId) : null;
-  const selectedEquippedInstance = state.equipped.find((i) => i.defId === selectedDefId);
-  const selectedCost = selectedDef
-    ? selectedEquippedInstance
-      ? capacity.instanceCosts[selectedEquippedInstance.instanceId]
-      : previewCostForNewPart(selectedDef, eqDefs)
+  const selectedDef = selected ? getPartDef(selected.defId) : null;
+  const selectedCost = selected
+    ? selected.source === 'equipped'
+      ? capacity.instanceCosts[selected.instanceId]
+      : previewCostForNewPart(selectedDef!, eqDefs)
     : undefined;
+  const activeSynergyCount =
+    Object.values(synergies.partType).reduce((n, g) => n + g.activeTiers.length, 0) +
+    Object.values(synergies.species).reduce((n, g) => n + g.activeTiers.length, 0);
 
   function tryEquip(instanceId: string, cost: number) {
     if (cost > capacity.free) {
@@ -41,24 +60,25 @@ export function PrepScreen() {
     }
     setEquipError(null);
     dispatch({ type: 'EQUIP', instanceId });
+    setSelected(null);
+  }
+
+  function unequip(instanceId: string) {
+    dispatch({ type: 'UNEQUIP', instanceId });
+    setEquipError(null);
+    setSelected(null);
   }
 
   return (
     <div className="screen prep-screen">
       <header className="screen__header">
-        <h1>🧬 戦闘準備 — 第{state.battleIndex}戦 / 全{TOTAL_BATTLES}戦（{slotLabel}）</h1>
+        <h1>🧬 第{state.battleIndex}戦 / 全{TOTAL_BATTLES}戦（{slotLabel}）</h1>
         <div className="header-right">
-          <div className="hp-readout" title="コアHPが0になると敗北です。勝利するまで戦闘間で持ち越されます">
-            ❤️ コアHP {state.coreHp} / {maxHp}
-          </div>
           <button className="btn btn--small btn--ghost" onClick={() => setShowIntro(true)} title="遊び方を表示">
-            ❓遊び方
+            ❓
           </button>
           <button className="btn btn--small btn--ghost" onClick={() => setShowGallery(true)} title="記録したキメラを見る">
-            🏛️図鑑{chimeraGallery.length > 0 ? `(${chimeraGallery.length})` : ''}
-          </button>
-          <button className="btn btn--small btn--ghost" onClick={() => setShowCommandEdit(true)} title="戦闘中に使うコマンドを編集する">
-            ⚡コマンド編集({state.commandLoadout.filter((f) => f).length}/4)
+            🏛️{chimeraGallery.length > 0 ? `(${chimeraGallery.length})` : ''}
           </button>
         </div>
       </header>
@@ -66,78 +86,220 @@ export function PrepScreen() {
       {showGallery && <ChimeraGalleryModal onClose={() => setShowGallery(false)} />}
       {showCommandEdit && <CommandEditModal onClose={() => setShowCommandEdit(false)} />}
 
-      <div className="prep-layout">
-        <div className="prep-col">
-          <ChimeraAvatar defs={eqDefs} size="sm" />
-          <CapacityBar used={capacity.used} total={capacity.total} />
-          {equipError && <div className="error-banner">{equipError}</div>}
+      <div className="prep-hero">
+        <ChimeraAvatar defs={eqDefs} />
+        <div className="prep-hero__title">あなたのキメラ・Lv{state.equipped.length}部位</div>
+        <CapacityBar used={capacity.used} total={capacity.total} />
+        {equipError && <div className="error-banner">{equipError}</div>}
+      </div>
 
-          <h2>装着中の部位（{state.equipped.length}）</h2>
-          <div className="part-grid">
-            {state.equipped.map((item) => {
-              const def = getPartDef(item.defId);
-              return (
-                <div key={item.instanceId} className="part-slot">
-                  <PartCard
-                    def={def}
-                    cost={capacity.instanceCosts[item.instanceId]}
-                    selected={selectedDefId === item.defId}
-                    onClick={() => setSelectedDefId(item.defId)}
-                  />
-                  <button
-                    className="btn btn--small"
-                    onClick={() => {
-                      dispatch({ type: 'UNEQUIP', instanceId: item.instanceId });
-                      setEquipError(null);
-                    }}
-                  >
+      <div className="tab-panel">
+        {tab === 'status' && (
+          <StatusTab
+            coreHp={state.coreHp}
+            maxHp={maxHp}
+            capacityUsed={capacity.used}
+            capacityTotal={capacity.total}
+            critChancePct={critChancePct}
+            equippedCount={state.equipped.length}
+            activeSynergyCount={activeSynergyCount}
+          />
+        )}
+
+        {tab === 'parts' && (
+          <PartsTab
+            state={state}
+            eqDefs={eqDefs}
+            capacity={capacity}
+            selectedInstanceId={selected?.instanceId ?? null}
+            onSelectEquipped={(instanceId, defId) => setSelected({ instanceId, defId, source: 'equipped' })}
+            onSelectInventory={(instanceId, defId) => setSelected({ instanceId, defId, source: 'inventory' })}
+          />
+        )}
+
+        {tab === 'synergy' && <SynergyPanel synergies={synergies} critChancePct={critChancePct} />}
+
+        {tab === 'menu' && (
+          <div className="prep-menu-list">
+            <button className="btn" onClick={() => setShowIntro(true)}>
+              ❓ 遊び方を見る
+            </button>
+            <button className="btn" onClick={() => setShowGallery(true)}>
+              🏛️ キメラ図鑑を見る{chimeraGallery.length > 0 ? `（${chimeraGallery.length}体）` : ''}
+            </button>
+            <button className="btn" onClick={() => setShowCommandEdit(true)}>
+              ⚡ コマンド編集を開く（{state.commandLoadout.filter((f) => f).length}/4）
+            </button>
+            <p className="muted">
+              戦闘予定: {BATTLE_SEQUENCE.map((_s, i) => (i + 1 === state.battleIndex ? `【${battleSlotLabelForIndex(i + 1)}】` : '・')).join('')}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {selectedDef && selected && (
+        <div className="modal-overlay" onClick={() => setSelected(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-card__header">
+              <h2 style={{ margin: 0, fontSize: '1em' }}>部位の詳細</h2>
+              <button className="modal-card__close" onClick={() => setSelected(null)}>
+                ✕
+              </button>
+            </div>
+            <PartDetailPanel
+              def={selectedDef}
+              cost={selectedCost}
+              actions={
+                selected.source === 'equipped' ? (
+                  <button className="btn btn--danger btn--block" onClick={() => unequip(selected.instanceId)}>
                     取り外す
                   </button>
-                </div>
-              );
-            })}
-            {state.equipped.length === 0 && <p className="muted">何も装着していません</p>}
-          </div>
-
-          <h2>インベントリ（{state.inventory.length}）</h2>
-          <div className="part-grid">
-            {state.inventory.map((item) => {
-              const def = getPartDef(item.defId);
-              const cost = previewCostForNewPart(def, eqDefs);
-              const canEquip = cost <= capacity.free;
-              return (
-                <div key={item.instanceId} className="part-slot">
-                  <PartCard def={def} cost={cost} selected={selectedDefId === item.defId} onClick={() => setSelectedDefId(item.defId)} />
-                  <button className="btn btn--small" disabled={!canEquip} onClick={() => tryEquip(item.instanceId, cost)}>
+                ) : (
+                  <button
+                    className="btn btn--primary btn--block"
+                    disabled={(selectedCost ?? 0) > capacity.free}
+                    onClick={() => tryEquip(selected.instanceId, selectedCost ?? 0)}
+                  >
                     装着する
                   </button>
-                </div>
-              );
-            })}
-            {state.inventory.length === 0 && <p className="muted">インベントリは空です</p>}
+                )
+              }
+            />
           </div>
         </div>
+      )}
 
-        <div className="prep-col prep-col--narrow">
-          <h2>部位詳細</h2>
-          {selectedDef ? (
-            <PartDetailPanel def={selectedDef} cost={selectedCost} />
-          ) : (
-            <p className="muted">部位カードを選択すると詳細が表示されます</p>
-          )}
-          <h2>シナジー状況</h2>
-          <SynergyPanel synergies={synergies} critChancePct={critChancePct} />
+      <div className="sticky-cta">
+        <button className="btn btn--primary btn--large btn--block" onClick={() => dispatch({ type: 'ENTER_BATTLE' })}>
+          ⚔️ 次の戦闘を開始する
+        </button>
+      </div>
+
+      <nav className="bottom-nav">
+        {NAV_ITEMS.map((item) => (
+          <button
+            key={item.id}
+            className={`bottom-nav__item${tab === item.id ? ' bottom-nav__item--active' : ''}`}
+            onClick={() => setTab(item.id)}
+          >
+            <span className="bottom-nav__icon">{item.icon}</span>
+            <span className="bottom-nav__label">{item.label}</span>
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+function StatusTab({
+  coreHp,
+  maxHp,
+  capacityUsed,
+  capacityTotal,
+  critChancePct,
+  equippedCount,
+  activeSynergyCount,
+}: {
+  coreHp: number;
+  maxHp: number;
+  capacityUsed: number;
+  capacityTotal: number;
+  critChancePct: number;
+  equippedCount: number;
+  activeSynergyCount: number;
+}) {
+  return (
+    <div className="section-card">
+      <div className="hp-readout" title="コアHPが0になると敗北です。勝利するまで戦闘間で持ち越されます">
+        ❤️ コアHP {coreHp} / {maxHp}
+      </div>
+      <div className="prep-status-grid">
+        <div className="prep-status-tile">
+          <div className="prep-status-tile__value">
+            {capacityUsed} / {capacityTotal}
+          </div>
+          <div className="prep-status-tile__label">🔗 接続容量</div>
+        </div>
+        <div className="prep-status-tile">
+          <div className="prep-status-tile__value">{critChancePct}%</div>
+          <div className="prep-status-tile__label">💥 会心率</div>
+        </div>
+        <div className="prep-status-tile">
+          <div className="prep-status-tile__value">{equippedCount}</div>
+          <div className="prep-status-tile__label">🦴 装着部位数</div>
+        </div>
+        <div className="prep-status-tile">
+          <div className="prep-status-tile__value">{activeSynergyCount}</div>
+          <div className="prep-status-tile__label">⭐ 発動中シナジー</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PartsTab({
+  state,
+  eqDefs,
+  capacity,
+  selectedInstanceId,
+  onSelectEquipped,
+  onSelectInventory,
+}: {
+  state: RunState;
+  eqDefs: ReturnType<typeof equippedDefs>;
+  capacity: ReturnType<typeof getCapacityInfo>;
+  selectedInstanceId: string | null;
+  onSelectEquipped: (instanceId: string, defId: string) => void;
+  onSelectInventory: (instanceId: string, defId: string) => void;
+}) {
+  return (
+    <>
+      <div className="prep-part-section">
+        <div className="prep-part-section__head">
+          <h2>装着中（{state.equipped.length}）</h2>
+        </div>
+        <div className="part-grid">
+          {state.equipped.map((item) => {
+            const def = getPartDef(item.defId);
+            return (
+              <PartCard
+                key={item.instanceId}
+                def={def}
+                compact
+                cost={capacity.instanceCosts[item.instanceId]}
+                selected={selectedInstanceId === item.instanceId}
+                onClick={() => onSelectEquipped(item.instanceId, item.defId)}
+              />
+            );
+          })}
+          {state.equipped.length === 0 && <p className="muted">何も装着していません</p>}
         </div>
       </div>
 
-      <footer className="screen__footer">
-        <div className="muted">
-          戦闘予定: {BATTLE_SEQUENCE.map((_s, i) => (i + 1 === state.battleIndex ? `【${battleSlotLabelForIndex(i + 1)}】` : '・')).join('')}
+      <div className="prep-part-section">
+        <div className="prep-part-section__head">
+          <h2>インベントリ（{state.inventory.length}）</h2>
         </div>
-        <button className="btn btn--primary btn--large" onClick={() => dispatch({ type: 'ENTER_BATTLE' })}>
-          ⚔️ 次の戦闘を開始する
-        </button>
-      </footer>
-    </div>
+        <div className="part-grid">
+          {state.inventory.map((item) => {
+            const def = getPartDef(item.defId);
+            const cost = previewCostForNewPart(def, eqDefs);
+            const canEquip = cost <= capacity.free;
+            return (
+              <PartCard
+                key={item.instanceId}
+                def={def}
+                compact
+                cost={cost}
+                disabled={!canEquip}
+                selected={selectedInstanceId === item.instanceId}
+                onClick={() => onSelectInventory(item.instanceId, item.defId)}
+              />
+            );
+          })}
+          {state.inventory.length === 0 && <p className="muted">インベントリは空です</p>}
+        </div>
+      </div>
+    </>
   );
 }

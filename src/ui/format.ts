@@ -3,8 +3,8 @@ import { PART_TYPE_LABELS, RARITY_LABELS, SPECIES_LABELS, TAG_LABELS } from '../
 
 export const RARITY_COLORS: Record<Rarity, string> = {
   common: '#9ca3af',
-  uncommon: '#38bdf8',
-  rare: '#c084fc',
+  uncommon: '#38dbf0',
+  rare: '#d879f7',
 };
 
 export const SPECIES_ICONS: Record<Species, string> = {

@@ -1,17 +1,23 @@
+import type { ReactNode } from 'react';
 import type { PartDef } from '../../data/types';
 import { RARITY_COLORS, SPECIES_ICONS, rarityLabel, speciesLabel, tagLabel, typeLabel } from '../format';
 import { PART_TYPE_SYNERGIES, SPECIES_SYNERGIES } from '../../data/synergies';
+import type { SynergyDeltaRow } from '../synergyPreview';
 
 interface PartDetailPanelProps {
   def: PartDef;
   cost?: number;
   compareWith?: PartDef[]; // 同種の現装着パーツとの比較用
+  synergyDelta?: SynergyDeltaRow[]; // この部位を装着した場合のシナジー変化プレビュー
+  actions?: ReactNode; // 「すぐ装着する」等のアクションボタン群
 }
 
-export function PartDetailPanel({ def, cost, compareWith }: PartDetailPanelProps) {
+// 本番版UI(TEST4)のデザインを移植したもの。本番版のdef.imageはTEST5の部位データに
+// 存在しないため常にアイコン表示とする。
+export function PartDetailPanel({ def, cost, compareWith, synergyDelta, actions }: PartDetailPanelProps) {
   const effectiveCost = cost ?? def.cost;
   return (
-    <div className="detail-panel" style={{ borderColor: RARITY_COLORS[def.rarity] }}>
+    <div className={`detail-panel part-card--rarity-${def.rarity}`} style={{ animation: 'none' }}>
       <div className="detail-panel__header">
         <span className="detail-panel__icon" style={{ color: def.color }}>
           {def.icon}
@@ -71,6 +77,23 @@ export function PartDetailPanel({ def, cost, compareWith }: PartDetailPanelProps
             </div>
           ))}
       </div>
+      {synergyDelta && synergyDelta.length > 0 && (
+        <div className="synergy-delta">
+          <div className="synergy-delta__title">🔗 装着するとシナジーは…</div>
+          {synergyDelta.map((row) => (
+            <div key={row.key} className={`synergy-delta__row${row.becameActive ? ' synergy-delta__row--new' : ''}`}>
+              <span>{row.icon} {row.label}</span>
+              <span className="synergy-delta__count">{row.before}</span>
+              <span className="synergy-delta__arrow">→</span>
+              <span className="synergy-delta__count">{row.after}</span>
+              {row.becameActive && <span className="synergy-delta__badge">★ 新規発動</span>}
+              {!row.becameActive && row.nextTierLabel && (
+                <span className="synergy-delta__next">あと{row.nextTierRemaining}個で「{row.nextTierLabel}」</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       {compareWith && compareWith.length > 0 && (
         <div className="detail-panel__compare">
           <div className="muted">現在装着中の同種部位と比較:</div>
@@ -84,6 +107,7 @@ export function PartDetailPanel({ def, cost, compareWith }: PartDetailPanelProps
           ))}
         </div>
       )}
+      {actions && <div className="detail-panel__actions">{actions}</div>}
     </div>
   );
 }

@@ -11,25 +11,26 @@ interface PartCardProps {
   onClick?: () => void;
 }
 
+// 本番版UI(TEST4)のデザインを移植したもの。本番版は将来のイラスト差し替え用に
+// def.image を持つが、TEST5の部位データにはこのフィールドが無いため常にアイコン表示とする。
 export function PartCard({ def, cost, selected, disabled, compact, badge, onClick }: PartCardProps) {
   const effectiveCost = cost ?? def.cost;
   return (
     <button
       type="button"
-      className={`part-card${selected ? ' part-card--selected' : ''}${disabled ? ' part-card--disabled' : ''}${compact ? ' part-card--compact' : ''}`}
-      style={{ borderColor: RARITY_COLORS[def.rarity], background: `linear-gradient(160deg, ${def.color}22, transparent)` }}
+      className={`part-card part-card--rarity-${def.rarity}${selected ? ' part-card--selected' : ''}${disabled ? ' part-card--disabled' : ''}${compact ? ' part-card--compact' : ''}`}
       onClick={onClick}
       title={`${def.name}\n${def.description}`}
     >
       {badge && <span className="part-card__badge">{badge}</span>}
+      <span className="part-card__rarity-tag" style={{ color: RARITY_COLORS[def.rarity] }}>
+        {rarityLabel(def.rarity)}
+      </span>
       <div className="part-card__icon" style={{ color: def.color }}>
         {def.icon}
       </div>
       <div className="part-card__name">{def.name}</div>
       <div className="part-card__meta">
-        <span className="chip" style={{ color: RARITY_COLORS[def.rarity] }}>
-          {rarityLabel(def.rarity)}
-        </span>
         <span className="chip">
           {TYPE_ICONS[def.type]} {typeLabel(def.type)}
         </span>
