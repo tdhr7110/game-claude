@@ -111,6 +111,25 @@ jobs:
           mkdir -p ../dist/test4
           cp -r dist/. ../dist/test4/
 
+      # フェーズ5（TEST5: ターン制コマンドバトル検証版）を /test5/ サブパスに同梱する。
+      # TEST1〜4・正式版とは完全に独立したブランチで、取得・ビルドに失敗しても他のデプロイは継続する。
+      - name: Checkout test5 branch (フェーズ5検証用)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: test5/chimera-butcher-turn-battle
+          path: test5-branch
+
+      - name: Build test5 branch into /test5/ subpath
+        if: hashFiles('test5-branch/package.json') != ''
+        continue-on-error: true
+        run: |
+          cd test5-branch
+          npm ci
+          npm run build -- --base=/game-claude/test5/
+          mkdir -p ../dist/test5
+          cp -r dist/. ../dist/test5/
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
