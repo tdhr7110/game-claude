@@ -22,13 +22,15 @@ export const COMMAND_DEFS: CommandDef[] = [
     name: '一斉発動',
     icon: '⚡',
     description: '装着中の攻撃可能な部位を全て即時発動する。腕・触手が多いほど追加の一斉攻撃が発生する。',
-    baseCooldown: 15,
+    // TEST2再調整: 15→18秒。多腕ビルドでの威力(スケーリング)自体は維持しつつ、連発しにくくして
+    // 暴走・防御が使われる場面を増やす（一斉発動が他コマンドの見せ場を食っている問題への対応）。
+    baseCooldown: 18,
   },
   {
     id: 'rampage',
     name: '暴走',
     icon: '🔥',
-    description: '5秒間、全部位の攻撃速度が倍増する。効果終了後5秒間は反動で低下する。',
+    description: '5秒間、全部位の攻撃速度が倍増する。効果終了後4秒間は反動で低下する。',
     baseCooldown: 20,
   },
   {

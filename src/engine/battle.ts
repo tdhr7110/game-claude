@@ -21,10 +21,10 @@ const ABSOLUTE_MAX_CHAIN = 10; // 暴走遺伝子等の連鎖発動が管理画�
 // --- TEST2フェーズ2: コマンド関連の定数 ---
 const RAMPAGE_BUFF_SECONDS = 5;
 const RAMPAGE_BUFF_MULT = 2;
-const RAMPAGE_DEBUFF_SECONDS = 5;
+const RAMPAGE_DEBUFF_SECONDS = 4; // TEST2再調整: 一斉発動偏重を緩和するため反動を5→4秒に短縮し暴走の実用性を上げる
 const RAMPAGE_DEBUFF_MULT = 0.75;
 const GUARD_BASE_SECONDS = 4;
-const GUARD_DAMAGE_REDUCTION_PCT = 50;
+const GUARD_DAMAGE_REDUCTION_PCT = 60; // TEST2再調整: 50→60%。単発コマンドとしての存在感を強化
 const GUARD_SKIN_SYNERGY_THRESHOLD = 5; // 外殻(skin)5個以上で防御コマンドの持続時間+50%
 const ALPHA_STRIKE_ARM_BONUS_THRESHOLD = 6; // 腕6以上で追加の一斉攻撃
 const ALPHA_STRIKE_ARM_CHAIN_THRESHOLD = 10; // 腕10以上で確率でさらにもう一度
