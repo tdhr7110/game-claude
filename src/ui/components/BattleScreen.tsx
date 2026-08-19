@@ -8,9 +8,34 @@ import { FloatingNumbers, HitCounter, ToastList, OverkillBanner, type Floater, t
 import { CapacityBar } from './CapacityBar';
 import { formatBigNumber } from '../format';
 import { playSE, getSESettings, setSEMuted, setSEVolume, subscribeSESettings, initAudioUnlock } from '../../engine/soundManager';
+import { STORAGE_NAMESPACE } from '../../persistence/storageKeys';
 import '../commandSystem.css';
 
 const SPEED_OPTIONS: SpeedSetting[] = [0, 1, 2, 4];
+
+// TEST6由来: 選択した再生速度(倍速)を次の戦闘でも覚えておく。一時停止(0)は「今だけ止めた」操作
+// なので記憶対象に含めず、1x/2x/4xのみ保存する。
+const SPEED_STORAGE_KEY = `${STORAGE_NAMESPACE}:battle-speed:v1`;
+
+function loadPreferredSpeed(): SpeedSetting {
+  try {
+    const raw = localStorage.getItem(SPEED_STORAGE_KEY);
+    const n = raw !== null ? Number(raw) : NaN;
+    return SPEED_OPTIONS.includes(n as SpeedSetting) && n !== 0 ? (n as SpeedSetting) : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function savePreferredSpeed(speed: SpeedSetting) {
+  if (speed === 0) return;
+  try {
+    localStorage.setItem(SPEED_STORAGE_KEY, String(speed));
+  } catch {
+    // 保存容量オーバーなどは無視(速度記憶は補助機能のため、ゲーム進行自体には影響させない)
+  }
+}
+
 // --- 戦闘演出のチューニング値 ---
 const FLOATER_TTL_MS = 1100;
 const TOAST_TTL_MS = 1500;
@@ -240,6 +265,7 @@ export function BattleScreen() {
       state.battleIndex,
       { verbose: state.verboseLog, commandFamilyIds: state.commandLoadout }
     );
+    engine.setSpeed(loadPreferredSpeed());
     battleEngineRef.current = engine;
     setSnapshot(engine.getSnapshot());
     lastTimeRef.current = performance.now();
@@ -395,6 +421,7 @@ export function BattleScreen() {
   function setSpeed(v: SpeedSetting) {
     battleEngineRef.current?.setSpeed(v);
     setSnapshot(battleEngineRef.current?.getSnapshot() ?? snapshot);
+    savePreferredSpeed(v);
   }
 
   function handleContinue() {

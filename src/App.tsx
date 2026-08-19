@@ -14,7 +14,9 @@ import { TurnBattleTestScreen } from './ui/turnTest/TurnBattleTestScreen';
 function Root({ onOpenTurnTest }: { onOpenTurnTest: () => void }) {
   const { state } = useGame();
   return (
-    <div className="app-root">
+    // TEST6由来: 戦闘画面は1画面に収め、ページ全体のスクロールが発生しないようにする
+    // (app-root--battleでビューポート高に固定し、内部は縮小できるようにする)。
+    <div className={`app-root${state.phase === 'battle' ? ' app-root--battle' : ''}`}>
       {state.phase === 'prep' && <PrepScreen />}
       {state.phase === 'enemySelect' && <EnemySelectScreen />}
       {state.phase === 'battle' && <BattleScreen />}

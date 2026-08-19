@@ -566,19 +566,54 @@
   margin-bottom: 4px;
 }
 .reward-card__slot-picker {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
   margin-bottom: 8px;
 }
 .reward-card__slot-chip {
   font-size: 0.78em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .reward-card__swap-confirm {
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin-top: 10px;
+}
+.reward-card__swap-compare {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.reward-card__swap-side {
+  width: 100%;
+  text-align: center;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-sm);
+}
+.reward-card__swap-side-label {
+  font-size: 0.68em;
+  letter-spacing: 0.08em;
+  color: var(--color-text-dim);
+  margin-bottom: 2px;
+}
+.reward-card__swap-name {
+  font-weight: 800;
+  font-size: 0.95em;
+}
+.reward-card__swap-stats {
+  font-size: 0.72em;
+  margin-top: 2px;
+}
+.reward-card__swap-desc {
+  font-size: 0.74em;
+  margin-top: 2px;
 }
 
 /* --- 粒子・光の輪・放射ビーム(レアリティに応じてJS側で表示数を変える) --- */
