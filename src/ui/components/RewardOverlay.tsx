@@ -2,7 +2,8 @@ import { useMemo, useRef, useState } from 'react';
 import { useGame } from '../GameContext';
 import { RARITY_EFFECT_CONFIG, type RewardCard } from '../../data/rewardPresentation';
 import { RARITY_COLORS, rarityLabel } from '../format';
-import { resolveFamilyBestCommand } from '../../data/commandDefs';
+import { COMMAND_CATEGORY_LABELS, getCommandDef, resolveFamilyBestCommand } from '../../data/commandDefs';
+import { commandEffectSummary, describeCommandEvolutionChanges } from '../commandFormat';
 import { equippedDefs } from '../../engine/run';
 import '../commandSystem.css';
 
@@ -231,16 +232,51 @@ function SwapConfirm({
   onCancel: () => void;
 }) {
   const { state } = useGame();
-  const currentLabel = useEquippedCommandLabel(state.commandLoadout[slotIndex]);
+  const fromFamilyId = state.commandLoadout[slotIndex];
+  const fromCmd = fromFamilyId ? resolveFamilyBestCommand(fromFamilyId, equippedDefs(state)) : null;
+  const toCmd = getCommandDef(card.itemId);
+  const changes = fromCmd && toCmd ? describeCommandEvolutionChanges(fromCmd, toCmd) : [];
+
   return (
     <div className="reward-card__swap-confirm">
-      <div className="reward-card__evolution-chain">
-        <span className="reward-card__evolution-old">{currentLabel}</span>
+      <div className="reward-card__swap-compare">
+        <div className="reward-card__swap-side">
+          <div className="reward-card__swap-side-label">入れ替え前</div>
+          {fromCmd ? (
+            <>
+              <div className="reward-card__swap-name">
+                {fromCmd.icon} {fromCmd.name}
+              </div>
+              <div className="reward-card__swap-stats muted">
+                {COMMAND_CATEGORY_LABELS[fromCmd.category]}・💧{fromCmd.metabolismCost}・⏱{fromCmd.cooldownSeconds}秒
+              </div>
+              <div className="reward-card__swap-desc muted">{commandEffectSummary(fromCmd)}</div>
+            </>
+          ) : (
+            <div className="muted">空き</div>
+          )}
+        </div>
         <span className="reward-card__evolution-arrow">↓</span>
-        <span>
-          {card.icon} {card.name}
-        </span>
+        <div className="reward-card__swap-side">
+          <div className="reward-card__swap-side-label">入れ替え後</div>
+          <div className="reward-card__swap-name">
+            {card.icon} {card.name}
+          </div>
+          <div className="reward-card__swap-stats muted">
+            {card.categoryLabel}・💧{card.metabolismCost}・⏱{card.cooldownSeconds}秒
+          </div>
+          <div className="reward-card__swap-desc muted">{card.description}</div>
+        </div>
       </div>
+
+      {changes.length > 0 && (
+        <ul className="reward-card__changes">
+          {changes.map((h) => (
+            <li key={h}>{h}</li>
+          ))}
+        </ul>
+      )}
+
       <button className="btn btn--primary btn--block" onClick={onConfirm}>
         この内容で入れ替える
       </button>

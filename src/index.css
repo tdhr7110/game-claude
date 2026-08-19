@@ -1287,6 +1287,9 @@ body.debug-open {
   padding: 5px;
   min-height: 40px;
   gap: 1px;
+  /* 戦闘画面では装着枠の点線フレーム・背景グローを非表示にし、部位アイコンだけを表示する */
+  border: none;
+  background: none;
 }
 .chimera-avatar--sm .chimera-avatar__icon {
   font-size: 1em;

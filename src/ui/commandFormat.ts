@@ -91,8 +91,10 @@ export const EFFECT_VALUE_FIELD_LABELS: Record<string, string> = {
   poison: '付与する毒量',
 };
 
-// コマンド進化時、進化前後で数値がどう変化したかを人間が読める文の配列にする。
-// キーごとの分岐を増やさず、effectValues/cooldownSeconds/metabolismCostを機械的に比較する。
+// 2つのコマンドの数値がどう変化するかを人間が読める文の配列にする。
+// コマンド進化(同じfamily内の上位互換)だけでなく、無関係なコマンド同士の
+// 入れ替え比較にも使える汎用関数。キーごとの分岐を増やさず、
+// effectValues/cooldownSeconds/metabolismCostを機械的に比較する。
 export function describeCommandEvolutionChanges(from: CommandDef, to: CommandDef): string[] {
   const changes: string[] = [];
   if (to.cooldownSeconds !== from.cooldownSeconds) {
