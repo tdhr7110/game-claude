@@ -296,11 +296,18 @@ section('18. 戦闘結果の内訳が正しく集計される');
 
 section('19. 既存セーブデータが破損しない');
 {
-  const gameContextSrc = readFileSync(new URL('../src/ui/GameContext.tsx', import.meta.url), 'utf-8');
-  assert(gameContextSrc.includes("'chimera-battle:gallery:v1'"), 'キメラ図鑑のlocalStorageキーは変更されていない');
-  assert(!gameContextSrc.includes('commandLoadout') || !gameContextSrc.includes('localStorage.setItem'), 'commandLoadoutはlocalStorageへ保存対象に追加されていない');
+  // TEST13(初期コア選択・タイトル画面・ラン再開)により、キメラ図鑑の保存キーは
+  // ビルドのベースパスで名前空間化された新形式（storage.ts）へ移行した。
+  // 「文字列が変わっていないこと」自体はもう検証対象ではなく、代わりに
+  // 「図鑑キーとラン保存キーが別々の名前空間付きキーとして分離されていること」を検証する。
+  const storageSrc = readFileSync(new URL('../src/ui/storage.ts', import.meta.url), 'utf-8');
+  assert(storageSrc.includes("storageKey('gallery-v1')"), 'キメラ図鑑は名前空間付きの専用キーを使っている');
+  assert(storageSrc.includes("storageKey('run-save')"), 'ラン進行(つづきから用)は図鑑と別の専用キーを使っている');
+  assert(storageSrc.includes('currentNamespace'), '保存キーがビルドのベースパスで名前空間化され、TESTごとに混ざらない');
+
   const run = createInitialRunState();
   assert(Array.isArray(run.commandLoadout) && run.commandLoadout.length === 4, 'RunStateにcommandLoadoutが安全なデフォルト値で追加されている');
+  assert(run.coreId === null, '初期コア未指定時はcoreIdがnullになり、従来通りの初期部位にフォールバックする');
 }
 
 console.log(`\n合計: ${passCount}件成功 / ${failCount}件失敗`);

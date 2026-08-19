@@ -21,42 +21,27 @@ import {
 } from '../engine/run';
 import type { BattleEngine } from '../engine/battle';
 import type { RewardCard } from '../data/rewardPresentation';
+import type { HintSceneId } from '../data/hints';
+import {
+  clearSeenHintIds,
+  hasContinuableRun,
+  loadGallery,
+  loadRun,
+  loadSeenHintIds,
+  loadSettings,
+  saveGallery,
+  saveRun,
+  saveSeenHintIds,
+  saveSettings,
+  type NamedChimeraLike,
+  type Settings,
+} from './storage';
 
-export interface NamedChimera {
-  id: string;
-  name: string;
-  outcome: 'victory' | 'defeat';
-  battleReached: number;
-  icons: string[]; // 命名時点で装着していた部位アイコンのスナップショット（表示用）
-  partIds: string[]; // 命名時点で装着していた部位のID（図鑑の詳細表示で参照する）
-  permanentCapacityBonus: number; // 命名時点の永続接続容量ボーナス（図鑑のビルド全体表示で接続容量を正しく計算するため）
-  createdAt: number;
-}
+export type NamedChimera = NamedChimeraLike;
 
-// キメラ図鑑だけをブラウザに保存する（ラン進行状況はセーブ対象外）。
-// 形式が壊れている・将来スキーマが変わった場合は空配列にフォールバックする。
-const GALLERY_STORAGE_KEY = 'chimera-battle:gallery:v1';
-
-function loadGalleryFromStorage(): NamedChimera[] {
-  try {
-    const raw = localStorage.getItem(GALLERY_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter(
-        (c): c is Omit<NamedChimera, 'partIds' | 'permanentCapacityBonus'> & { partIds?: unknown; permanentCapacityBonus?: unknown } =>
-          c && typeof c.id === 'string' && typeof c.name === 'string' && Array.isArray(c.icons) && typeof c.createdAt === 'number'
-      )
-      .map((c) => ({
-        ...c,
-        partIds: Array.isArray(c.partIds) ? (c.partIds as string[]) : [],
-        permanentCapacityBonus: typeof c.permanentCapacityBonus === 'number' ? c.permanentCapacityBonus : 0,
-      }));
-  } catch {
-    return [];
-  }
-}
+// アプリ全体の画面遷移。タイトル / 初期コア選択 は「ラン」とは独立したUI状態として管理する
+// （RunStateのphaseはラン内部のフェーズ(prep/battle/drop/result)のみを表す）。
+export type Screen = 'title' | 'coreSelect' | 'game';
 
 type Action =
   | { type: 'EQUIP'; instanceId: string }
@@ -74,10 +59,16 @@ type Action =
   | { type: 'TOGGLE_VERBOSE' }
   | { type: 'SET_COMMAND_SLOT'; slotIndex: number; familyId: string | null }
   | { type: 'RECORD_COMMAND_DISCOVERIES'; commandIds: string[] }
-  | { type: 'MARK_COMMANDS_SEEN'; commandIds?: string[] };
+  | { type: 'MARK_COMMANDS_SEEN'; commandIds?: string[] }
+  | { type: 'START_NEW_RUN'; coreId: string }
+  | { type: 'LOAD_RUN'; run: RunState };
 
 function reducer(state: RunState, action: Action): RunState {
   switch (action.type) {
+    case 'START_NEW_RUN':
+      return createInitialRunState(action.coreId);
+    case 'LOAD_RUN':
+      return action.run;
     case 'EQUIP':
       return equipPart(state, action.instanceId).state;
     case 'UNEQUIP':
@@ -135,6 +126,20 @@ interface GameContextValue {
   pushRewardCards: (cards: RewardCard[]) => void;
   advanceRewardQueue: () => void;
   clearRewardQueue: () => void;
+
+  // --- オンボーディング(タイトル/初期コア選択/ヒント/設定) ---
+  screen: Screen;
+  hasSavedRun: boolean;
+  goToTitle: () => void;
+  goToCoreSelect: () => void;
+  confirmCore: (coreId: string) => void;
+  continueRun: () => boolean; // 読み込みに失敗した場合はfalseを返す
+  activeHint: HintSceneId | null;
+  triggerHint: (id: HintSceneId) => void;
+  dismissHint: () => void;
+  resetHints: () => void;
+  settings: Settings;
+  setVolume: (v: number) => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -144,8 +149,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const battleEngineRef = useRef<BattleEngine | null>(null);
   const [equipError, setEquipErrorState] = React.useState<string | null>(null);
   const setEquipError = useCallback((msg: string | null) => setEquipErrorState(msg), []);
-  const [showIntro, setShowIntro] = React.useState(true);
-  const [chimeraGallery, setChimeraGallery] = React.useState<NamedChimera[]>(loadGalleryFromStorage);
+  const [showIntro, setShowIntro] = React.useState(false);
+  const [chimeraGallery, setChimeraGallery] = React.useState<NamedChimera[]>(() => loadGallery<NamedChimera>());
   const [battleResetSignal, setBattleResetSignal] = React.useState(0);
   const triggerBattleReset = useCallback(() => setBattleResetSignal((v) => v + 1), []);
   const [rewardQueue, setRewardQueue] = React.useState<RewardCard[]>([]);
@@ -160,14 +165,80 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setChimeraGallery((prev) => [chimera, ...prev]);
   }, []);
 
-  // 図鑑が変化するたびにブラウザへ保存する（ラン進行状況は対象外）
+  // 図鑑が変化するたびにブラウザへ保存する（ラン進行状況とは別領域）
   useEffect(() => {
-    try {
-      localStorage.setItem(GALLERY_STORAGE_KEY, JSON.stringify(chimeraGallery));
-    } catch {
-      // 保存容量オーバーなどは無視（図鑑保存は補助機能のため、ゲーム進行自体には影響させない）
-    }
+    saveGallery(chimeraGallery);
   }, [chimeraGallery]);
+
+  // --- タイトル / 初期コア選択 ---
+  const [screen, setScreen] = React.useState<Screen>('title');
+  const [hasSavedRun, setHasSavedRun] = React.useState<boolean>(() => hasContinuableRun());
+  const goToTitle = useCallback(() => {
+    setHasSavedRun(hasContinuableRun());
+    setScreen('title');
+  }, []);
+  const goToCoreSelect = useCallback(() => setScreen('coreSelect'), []);
+
+  // --- ヒント ---
+  // 複数の場面ヒントがほぼ同時に発生した場合（例: コア選択直後の「保存」と「最初の敵」）、
+  // 後から来た方を黙って捨てず、1つずつ順番に表示できるようキューで保持する。
+  const [seenHints, setSeenHints] = React.useState<Set<HintSceneId>>(() => new Set(loadSeenHintIds() as HintSceneId[]));
+  const [hintQueue, setHintQueue] = React.useState<HintSceneId[]>([]);
+  const activeHint = hintQueue[0] ?? null;
+  const triggerHint = useCallback(
+    (id: HintSceneId) => {
+      if (seenHints.has(id)) return;
+      setSeenHints((prev) => {
+        if (prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.add(id);
+        saveSeenHintIds(Array.from(next));
+        return next;
+      });
+      setHintQueue((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    },
+    [seenHints]
+  );
+  const dismissHint = useCallback(() => setHintQueue((prev) => prev.slice(1)), []);
+  const resetHints = useCallback(() => {
+    clearSeenHintIds();
+    setSeenHints(new Set());
+    setHintQueue([]);
+  }, []);
+
+  // --- 設定(音量) ---
+  const [settings, setSettings] = React.useState<Settings>(() => loadSettings());
+  const setVolume = useCallback((v: number) => {
+    setSettings((prev) => {
+      const next = { ...prev, volume: Math.max(0, Math.min(100, Math.round(v))) };
+      saveSettings(next);
+      return next;
+    });
+  }, []);
+
+  const confirmCore = useCallback(
+    (coreId: string) => {
+      dispatch({ type: 'START_NEW_RUN', coreId });
+      setScreen('game');
+      triggerHint('first_save');
+    },
+    [triggerHint]
+  );
+
+  const continueRun = useCallback(() => {
+    const run = loadRun();
+    if (!run) return false;
+    dispatch({ type: 'LOAD_RUN', run });
+    setScreen('game');
+    return true;
+  }, []);
+
+  // 実際に開始したラン(coreIdあり)のみ自動保存する。タイトル起動直後のダミー初期状態は保存しない。
+  useEffect(() => {
+    if (!state.coreId) return;
+    saveRun(state);
+    setHasSavedRun(true);
+  }, [state]);
 
   const value = useMemo(
     () => ({
@@ -186,6 +257,18 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       pushRewardCards,
       advanceRewardQueue,
       clearRewardQueue,
+      screen,
+      hasSavedRun,
+      goToTitle,
+      goToCoreSelect,
+      confirmCore,
+      continueRun,
+      activeHint,
+      triggerHint,
+      dismissHint,
+      resetHints,
+      settings,
+      setVolume,
     }),
     [
       state,
@@ -200,6 +283,18 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       pushRewardCards,
       advanceRewardQueue,
       clearRewardQueue,
+      screen,
+      hasSavedRun,
+      goToTitle,
+      goToCoreSelect,
+      confirmCore,
+      continueRun,
+      activeHint,
+      triggerHint,
+      dismissHint,
+      resetHints,
+      settings,
+      setVolume,
     ]
   );
 

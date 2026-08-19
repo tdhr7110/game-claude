@@ -4,6 +4,7 @@ import { buildDeepFinalBoss, buildFinalBoss, buildMiniboss, pickEliteEnemy, pick
 import { computeCapacity, previewCostForNewPart, type CapacityInfo } from './capacity';
 import { computeBonusHp } from './modifiers';
 import { COMMAND_BALANCE, DEFAULT_COMMAND_LOADOUT, resolveFamilyBestCommand } from '../data/commandDefs';
+import { getCoreDef } from '../data/cores';
 
 export type GamePhase = 'prep' | 'battle' | 'drop' | 'result';
 export type BattleSlotType = 'normal' | 'elite' | 'miniboss' | 'boss';
@@ -47,6 +48,9 @@ export interface RunState {
   // まだ報酬演出またはコマンド編集画面で確認していないcommandIdの一覧。
   // 下部ナビゲーション「コマンド」のNEWバッジ表示に使う。
   unseenCommandIds: string[];
+  // 初期コア選択(オンボーディング): どのコアでこのランを開始したか。
+  // 未選択（デバッグ強制リセット等）の場合はnullで、従来通りの初期部位にフォールバックする。
+  coreId: string | null;
 }
 
 function nextInstanceId(state: RunState): [string, RunState] {
@@ -54,7 +58,9 @@ function nextInstanceId(state: RunState): [string, RunState] {
   return [id, { ...state, instanceSeq: state.instanceSeq + 1 }];
 }
 
-export function createInitialRunState(): RunState {
+// coreIdを指定すると、そのコアのプリセット初期部位で開始する（初期コア3択用）。
+// 省略時は従来通り「弱い腕」x2で開始する（デバッグ強制リセット等の後方互換のため）。
+export function createInitialRunState(coreId?: string | null): RunState {
   let state: RunState = {
     phase: 'prep',
     battleIndex: 1,
@@ -72,11 +78,14 @@ export function createInitialRunState(): RunState {
     commandLoadout: [...DEFAULT_COMMAND_LOADOUT],
     knownCommandIds: [],
     unseenCommandIds: [],
+    coreId: coreId ?? null,
   };
-  for (let i = 0; i < 2; i++) {
+  const core = coreId ? getCoreDef(coreId) : null;
+  const startingPartIds = core ? core.startingPartIds : [WEAK_ARM.id, WEAK_ARM.id];
+  for (const defId of startingPartIds) {
     const [id, next] = nextInstanceId(state);
     state = next;
-    state = { ...state, equipped: [...state.equipped, { instanceId: id, defId: WEAK_ARM.id }] };
+    state = { ...state, equipped: [...state.equipped, { instanceId: id, defId }] };
   }
   return state;
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useGame } from '../GameContext';
 import { equippedDefs, getCapacityInfo, getMaxHp } from '../../engine/run';
 import { computeActiveSynergies } from '../../engine/synergyEngine';
@@ -10,13 +10,17 @@ import { ChimeraAvatar } from './ChimeraAvatar';
 const DEFAULT_NAME = '名もなきキメラ';
 
 export function ResultScreen() {
-  const { state, dispatch, addNamedChimera } = useGame();
+  const { state, addNamedChimera, goToTitle, triggerHint } = useGame();
   const eqDefs = useMemo(() => equippedDefs(state), [state]);
   const capacity = useMemo(() => getCapacityInfo(state), [state]);
   const synergies = useMemo(() => computeActiveSynergies(eqDefs), [eqDefs]);
   const critChancePct = useMemo(() => Math.round(computeModifiers(eqDefs, synergies).critChance * 100), [eqDefs, synergies]);
   const maxHp = getMaxHp(state);
   const victory = state.resultOutcome === 'victory';
+
+  useEffect(() => {
+    if (!victory) triggerHint('first_defeat');
+  }, [victory, triggerHint]);
 
   const [nameInput, setNameInput] = useState('');
   const [savedName, setSavedName] = useState<string | null>(null);
@@ -85,8 +89,8 @@ export function ResultScreen() {
       <h2>最終シナジー</h2>
       <SynergyPanel synergies={synergies} critChancePct={critChancePct} />
 
-      <button className="btn btn--primary btn--large" onClick={() => dispatch({ type: 'RESET' })}>
-        🔄 新しいランを開始する
+      <button className="btn btn--primary btn--large" onClick={goToTitle}>
+        🏠 タイトルへ戻る
       </button>
     </div>
   );

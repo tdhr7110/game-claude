@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useGame } from '../GameContext';
 import type { RunState } from '../../engine/run';
 import { equippedDefs, getCapacityInfo, getMaxHp, battleSlotLabel, battleSlotLabelForIndex, BATTLE_SEQUENCE, TOTAL_BATTLES } from '../../engine/run';
@@ -29,13 +29,18 @@ interface SelectedPart {
 }
 
 export function PrepScreen() {
-  const { state, dispatch, equipError, setEquipError, setShowIntro, chimeraGallery } = useGame();
+  const { state, dispatch, equipError, setEquipError, setShowIntro, chimeraGallery, triggerHint } = useGame();
   const [tab, setTab] = useState<PrepTab>('parts');
   const [selected, setSelected] = useState<SelectedPart | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [showCommandEdit, setShowCommandEdit] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const unseenCommandCount = state.unseenCommandIds.length;
+
+  // 最初の戦闘準備画面（初期コア選択直後）でだけ、これから挑む敵についてのヒントを出す。
+  useEffect(() => {
+    if (state.battleIndex === 1) triggerHint('first_enemy');
+  }, [state.battleIndex, triggerHint]);
 
   function openCommandEdit() {
     setShowCommandEdit(true);
@@ -60,9 +65,14 @@ export function PrepScreen() {
     Object.values(synergies.partType).reduce((n, g) => n + g.activeTiers.length, 0) +
     Object.values(synergies.species).reduce((n, g) => n + g.activeTiers.length, 0);
 
+  useEffect(() => {
+    if (activeSynergyCount > 0) triggerHint('first_synergy');
+  }, [activeSynergyCount, triggerHint]);
+
   function tryEquip(instanceId: string, cost: number) {
     if (cost > capacity.free) {
       setEquipError(`接続容量が足りません（必要${cost} / 空き${capacity.free}）。先に他の部位を取り外してください`);
+      triggerHint('capacity_over');
       return;
     }
     setEquipError(null);

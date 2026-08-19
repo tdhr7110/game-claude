@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../GameContext';
 import { RARITY_EFFECT_CONFIG, type RewardCard } from '../../data/rewardPresentation';
 import { RARITY_COLORS, rarityLabel } from '../format';
@@ -19,7 +19,7 @@ function prefersReducedMotion(): boolean {
 }
 
 export function RewardOverlay() {
-  const { state, dispatch, rewardQueue, advanceRewardQueue } = useGame();
+  const { state, dispatch, rewardQueue, advanceRewardQueue, triggerHint } = useGame();
   const batchTotalRef = useRef(0);
   const prevLenRef = useRef(0);
   if (rewardQueue.length > 0 && prevLenRef.current === 0) {
@@ -30,6 +30,13 @@ export function RewardOverlay() {
   const [swapTarget, setSwapTarget] = useState<number | null>(null);
 
   const card = rewardQueue[0];
+
+  useEffect(() => {
+    if (!card) return;
+    if (card.rewardType === 'command_unlocked') triggerHint('first_command');
+    if (card.rewardType === 'command_evolved') triggerHint('command_evolve');
+  }, [card, triggerHint]);
+
   if (!card) return null;
 
   const reduced = prefersReducedMotion();

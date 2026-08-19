@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useGame } from '../GameContext';
 import { acceptDrop, equippedDefs } from '../../engine/run';
 import { previewCostForNewPart } from '../../engine/capacity';
@@ -11,11 +11,15 @@ import { buildCommandRewardCard, buildPartAcquiredCard } from '../rewardCardBuil
 import { getPartDef } from '../../data/parts';
 
 export function DropScreen() {
-  const { state, dispatch, pushRewardCards } = useGame();
+  const { state, dispatch, pushRewardCards, triggerHint } = useGame();
   const [selectedDefId, setSelectedDefId] = useState<string | null>(null);
 
   const eqDefs = useMemo(() => equippedDefs(state), [state]);
   const capacity = useMemo(() => getCapacityInfo(state), [state]);
+
+  useEffect(() => {
+    if (state.dropCandidates.length > 0) triggerHint('first_part');
+  }, [state.dropCandidates.length, triggerHint]);
 
   // 部位獲得を確定し、同じ操作の中で新しく解放・進化したコマンドを判定して
   // 報酬演出キューへ積む。既存のacceptDrop()自体は純粋関数なので、実際にdispatchする前に
@@ -44,6 +48,10 @@ export function DropScreen() {
   const previewCost = selectedDef ? previewCostForNewPart(selectedDef, eqDefs) : 0;
   const canEquip = selectedDef ? previewCost <= capacity.free : false;
   const synergyDelta = useMemo(() => (selectedDef ? computeSynergyDelta(eqDefs, selectedDef) : []), [selectedDef, eqDefs]);
+
+  useEffect(() => {
+    if (selectedDef && !canEquip) triggerHint('capacity_over');
+  }, [selectedDef, canEquip, triggerHint]);
 
   if (!hasCandidates) {
     return (
