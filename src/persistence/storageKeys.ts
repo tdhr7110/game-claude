@@ -20,3 +20,9 @@ export const RUN_SAVE_KEY = `${STORAGE_NAMESPACE}:run:v2`;
 // 命名キメラ図鑑は既存のキー(chimera-battle:gallery:v1、GameContext.tsx参照)を
 // そのまま使い続ける。既存データを失わないため、あえて移行・統合しない。
 export const CODEX_SAVE_KEY = `${STORAGE_NAMESPACE}:codex:v1`;
+
+// ローカル難易度計測・バランス確認用のイベント記録(TEST12)。
+// ラン途中保存(RUN_SAVE_KEY)・収集図鑑(CODEX_SAVE_KEY)とは完全に別のキーに保存する
+// (要件: 「保存先は専用localStorageキーとし、ラン保存や図鑑保存と混ぜない」)。
+// ブラウザ内(localStorage)にのみ保存し、外部サーバーへは一切送信しない。
+export const METRICS_SAVE_KEY = `${STORAGE_NAMESPACE}:metrics:v1`;

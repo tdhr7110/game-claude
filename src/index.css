@@ -1270,6 +1270,112 @@ body.debug-open {
 }
 
 /* ============================================================
+   バランス確認画面(開発者向け・TEST12)
+   デバッグUIと同様、目立たない場所に配置する。
+   ============================================================ */
+.balance-dash-toggle {
+  position: fixed;
+  top: env(safe-area-inset-top, 0px);
+  right: env(safe-area-inset-right, 0px);
+  z-index: 90;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  border-top: none;
+  border-right: none;
+  color: rgba(255, 255, 255, 0.45);
+  border-radius: 0 0 0 var(--radius-sm);
+  padding: 3px 8px;
+  cursor: pointer;
+  font-size: 0.7em;
+  line-height: 1.4;
+  opacity: 0.75;
+}
+.balance-dash-toggle:hover {
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.5);
+  opacity: 1;
+}
+.balance-dash {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  background: #0c0a14;
+  color: var(--color-text, #eee);
+  display: flex;
+  flex-direction: column;
+  font-size: 0.86em;
+}
+.balance-dash__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 10px);
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.25);
+  font-weight: bold;
+}
+.balance-dash__header-actions {
+  display: flex;
+  gap: 8px;
+}
+.balance-dash__body {
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.balance-dash__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.balance-dash__toolbar select {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 4px;
+  margin-left: 6px;
+}
+.balance-dash__warning {
+  background: rgba(250, 204, 21, 0.1);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+.balance-dash__warning ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+.balance-dash__section h3 {
+  margin-bottom: 6px;
+}
+.balance-dash__table-wrap {
+  overflow-x: auto;
+}
+.balance-dash__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95em;
+  min-width: 480px;
+}
+.balance-dash__table th,
+.balance-dash__table td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 5px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+.balance-dash__table th {
+  color: var(--color-text-muted);
+  font-weight: normal;
+}
+.balance-dash__sample {
+  font-size: 0.85em;
+}
+
+/* ============================================================
    結果画面
    ============================================================ */
 .result-screen .part-grid {
@@ -1305,6 +1411,53 @@ body.debug-open {
 .naming-box--done {
   color: var(--color-success);
   font-size: 0.95em;
+}
+
+/* ============================================================
+   ラン終了時アンケート(任意・TEST12)
+   ============================================================ */
+.survey-box {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  margin: 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.survey-box__title {
+  font-weight: bold;
+}
+.survey-box__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.survey-box__row label {
+  min-width: 130px;
+  color: var(--color-text-muted);
+}
+.survey-box__stars,
+.survey-box__row-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.survey-box__input {
+  flex: 1;
+  min-width: 160px;
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  color: var(--color-text);
+}
+.survey-box--done {
+  color: var(--color-success);
+  font-size: 0.95em;
+  text-align: center;
 }
 
 .crit-stat {
@@ -2350,4 +2503,173 @@ body.debug-open {
   .command-btn__name {
     font-size: 0.76em;
   }
+}
+
+/* ============================================================
+   部位融合（TEST16: ボス撃破後の任意融合）
+   ============================================================ */
+.fusion-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  font-size: 1.5em;
+  border-radius: var(--radius-sm);
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-border);
+}
+.fusion-icon--lg {
+  width: 56px;
+  height: 56px;
+  font-size: 2em;
+}
+.fusion-icon--composite {
+  overflow: hidden;
+}
+.fusion-icon__layer {
+  position: absolute;
+  font-size: 0.75em;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+.fusion-icon__layer--a {
+  top: 4px;
+  left: 5px;
+}
+.fusion-icon__layer--b {
+  bottom: 3px;
+  right: 4px;
+}
+
+.fusion-candidate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+.fusion-candidate-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--color-text);
+  font: inherit;
+}
+.fusion-candidate-row--selected {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+.fusion-candidate-row__name {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.fusion-candidate-row__sources {
+  font-size: 0.85em;
+  margin-top: 2px;
+}
+
+.fusion-preview {
+  background: var(--color-panel);
+  border: 1px solid var(--rarity-rare);
+  box-shadow: 0 0 16px 2px var(--rarity-rare-glow);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  margin: 12px 0;
+}
+.fusion-preview__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.fusion-preview__plus,
+.fusion-preview__arrow {
+  font-size: 1.3em;
+  color: var(--color-text-muted);
+}
+.fusion-preview__result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.fusion-preview__result-name {
+  font-weight: 700;
+  font-size: 0.9em;
+  text-align: center;
+}
+.fusion-preview__cost {
+  margin: 10px 0;
+  font-size: 0.95em;
+}
+.fusion-preview__saved {
+  color: var(--color-mint);
+  font-weight: 600;
+}
+.fusion-preview__abilities {
+  background: var(--color-panel-2);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.fusion-preview__abilities-title {
+  font-size: 0.85em;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+.fusion-preview__abilities-title--exclusive {
+  margin-top: 10px;
+  color: var(--rarity-rare);
+}
+.fusion-preview__abilities ul {
+  margin: 0;
+  padding-left: 20px;
+}
+.fusion-preview__exclusive {
+  margin: 4px 0 0;
+  font-weight: 600;
+}
+.fusion-preview__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fusion-result-banner {
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-mint);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  margin: 12px 0;
+  text-align: center;
+}
+.fusion-result-banner__title {
+  font-weight: 700;
+  font-size: 1.05em;
+  margin-bottom: 4px;
+}
+.fusion-result-banner .part-card {
+  margin: 10px auto 0;
+}
+
+.fusion-codex-entry {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--color-text);
+}
+.fusion-codex-entry--selected {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
 }

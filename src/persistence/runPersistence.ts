@@ -25,7 +25,7 @@ import { safeGetItem, safeRemoveItem, safeSetItem } from './storageAvailability'
 
 export const RUN_SAVE_VERSION = 2;
 
-const PHASES: GamePhase[] = ['prep', 'enemySelect', 'battle', 'drop', 'result'];
+const PHASES: GamePhase[] = ['prep', 'enemySelect', 'battle', 'drop', 'result', 'fusion'];
 
 export interface RunSaveEnvelope {
   saveVersion: number;
@@ -153,6 +153,9 @@ function isRunState(v: unknown): v is RunState {
   if (!isNullableStringArray(v.commandLoadout)) return false;
   if (!isStringArray(v.knownCommandIds)) return false;
   if (!isStringArray(v.unseenCommandIds)) return false;
+  // 融合(TEST16)導入前のセーブにはfusionOfferUsedが存在しないため、
+  // 型があればbooleanのみ許容し、欠けている場合はreviveRunState側でfalse補完する。
+  if (v.fusionOfferUsed !== undefined && typeof v.fusionOfferUsed !== 'boolean') return false;
   return true;
 }
 
@@ -164,6 +167,8 @@ function reviveRunState(raw: RunState): RunState {
     equipped: raw.equipped.map((i) => ({ instanceId: i.instanceId, defId: i.defId })),
     inventory: raw.inventory.map((i) => ({ instanceId: i.instanceId, defId: i.defId })),
     dropCandidates: raw.dropCandidates.map((d) => PARTS_BY_ID[d.id]),
+    // 融合(TEST16)導入前のセーブ(fusionOfferUsedが無い)を復元する場合のフォールバック。
+    fusionOfferUsed: raw.fusionOfferUsed ?? false,
   };
 }
 

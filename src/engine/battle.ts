@@ -84,6 +84,7 @@ interface RuntimePart {
   activations: number; // このパーツが発動した回数（UI用）
   telegraph?: MoveTelegraph; // TEST7: 発動直前に一度だけ予兆ログを出す(敵の大技用。省略時は何もしない)
   telegraphFired: boolean;
+  fusionBurstUses: number; // 融合専用能力(fusion_burst_on_hit)の発動回数。1戦闘ごとにリセットされる
 }
 
 interface PoisonState {
@@ -261,7 +262,13 @@ export class BattleEngine {
     healed: 0,
     maxSingleHit: 0,
     commandDamageByCommand: {} as Record<string, number>,
+    // --- バランス計測(TEST12)向け: コマンド単位の内訳。コマンド未使用の戦闘では常に空のまま。 ---
+    commandUsageByCommand: {} as Record<string, number>,
+    commandHealByCommand: {} as Record<string, number>,
   };
+  // バランス計測(TEST12)向け: プレイヤーが最後に受けたダメージの発生源ラベル。
+  // 敗北時の死亡原因として使う(dealDamage()が唯一の入口のため、ここで一元管理する)。
+  private lastPlayerDamageCause: string | null = null;
 
   constructor(
     setup: PlayerBattleSetup,
@@ -373,7 +380,7 @@ export class BattleEngine {
     telegraph?: MoveTelegraph
   ): RuntimePart {
     const cooldown = Math.max(MIN_EFFECTIVE_INTERVAL, effectiveInterval(baseInterval, type, mods));
-    return { instanceId, name, type, attack, isPassive: attack === 0, effects, icon, cooldown, timer: 0, activations: 0, telegraph, telegraphFired: false };
+    return { instanceId, name, type, attack, isPassive: attack === 0, effects, icon, cooldown, timer: 0, activations: 0, telegraph, telegraphFired: false, fusionBurstUses: 0 };
   }
 
   subscribe(cb: () => void): () => void {
@@ -424,7 +431,8 @@ export class BattleEngine {
   // ダメージを与える唯一の入口。復活判定もここで行う。
   // sourceはコマンドシステムの内訳集計(オート/コマンド/状態異常)専用で、
   // 省略時は既存呼び出し元と同じ'auto'として扱われ、挙動は一切変わらない。
-  private dealDamage(target: Combatant, amount: number, source: DamageSource = AUTO_SOURCE): number {
+  // causeLabelはバランス計測(TEST12)向けの死亡原因ラベル(省略可・戦闘挙動には影響しない)。
+  private dealDamage(target: Combatant, amount: number, source: DamageSource = AUTO_SOURCE, causeLabel?: string): number {
     if (target.isDead) return 0;
     let applied = Math.max(0, Math.round(amount));
     if (target.shieldValue > 0 && applied > 0) {
@@ -433,6 +441,7 @@ export class BattleEngine {
       applied -= absorbed;
       if (absorbed > 0) this.pushLog(`🛡️ ${target.name}の障壁が${absorbed}ダメージを吸収（残り${Math.round(target.shieldValue)}）`);
     }
+    if (target === this.player && applied > 0 && causeLabel) this.lastPlayerDamageCause = causeLabel;
     const hpBefore = target.hp;
     target.hp -= applied;
     if (target.hp <= 0) {
@@ -517,7 +526,7 @@ export class BattleEngine {
     if (isCrit) rawDamage *= attacker.mods.critMultiplier + critMultBonus;
     if (attacker.mods.finalDamageMult !== 1) rawDamage *= attacker.mods.finalDamageMult;
     const finalDamage = this.applyDefenseAndReduction(rawDamage, defender);
-    const applied = this.dealDamage(defender, finalDamage, source);
+    const applied = this.dealDamage(defender, finalDamage, source, `${attacker.name}の${part.name}`);
     attacker.stats.damageDealt += applied;
     if (isCrit) attacker.stats.critCount += 1;
     if (this.commandsEnabled && attacker === this.player && applied > 0) this.gainOnHitMetabolism();
@@ -553,7 +562,7 @@ export class BattleEngine {
       if (reflectPct > 0) {
         const reflectAmount = Math.max(0, Math.round(rawDamage * (reflectPct / 100)));
         if (reflectAmount > 0) {
-          const dealt = this.dealDamage(attacker, reflectAmount, { kind: 'command' });
+          const dealt = this.dealDamage(attacker, reflectAmount, { kind: 'command' }, `${defender.name}の反射`);
           this.pushLog(`🪞 ${defender.name}の反射甲殻！${attacker.name}に${dealt}ダメージ`);
           this.pushEvent({ type: 'reflect', side: defender.side, damage: dealt });
         }
@@ -575,9 +584,32 @@ export class BattleEngine {
     }
     for (const e of onHit) this.applyOnHitEffect(attacker, defender, e);
 
+    // 融合専用能力: 攻撃命中時、一定確率で追加ダメージが発生する（「通常の追加攻撃」として扱う）。
+    // UI説明(data/fusion.ts exclusiveDescription)は「追加ダメージ+X%」であり「固定ダメージ」
+    // とは明示していないため、通常攻撃と同じ防御・軽減計算(applyDefenseAndReduction)を通す。
+    // 骨槍などの真の固定ダメージ効果(「防御無視の固定」と明示)とは異なる。
+    // maxActivationsPerBattleを超えて発動しないようpart.fusionBurstUsesで厳密にガードし、
+    // 「能力の発動回数は1戦闘あたり有限」であることを保証する（無限ループ・無限連鎖の防止）。
+    if (!defender.isDead && applied > 0) {
+      for (const e of part.effects) {
+        if (e.kind !== 'fusion_burst_on_hit') continue;
+        if (part.fusionBurstUses >= e.maxActivationsPerBattle) continue;
+        if (Math.random() >= e.chance) continue;
+        part.fusionBurstUses += 1;
+        const bonusRaw = Math.max(1, Math.round(rawDamage * (e.bonusDamagePct / 100)));
+        const bonusFinal = this.applyDefenseAndReduction(bonusRaw, defender);
+        const bonusApplied = this.dealDamage(defender, bonusFinal, source, `${attacker.name}の${part.name}(融合追撃)`);
+        attacker.stats.damageDealt += bonusApplied;
+        this.pushLog(
+          `✨ ${attacker.name}の${part.icon}${part.name}が融合の追撃！+${bonusApplied}ダメージ（残り発動${e.maxActivationsPerBattle - part.fusionBurstUses}回）`
+        );
+        if (defender.isDead) break;
+      }
+    }
+
     // 被弾側の反撃
     if (defender.mods.counterDamage > 0 && !defender.isDead) {
-      const cdmg = this.dealDamage(attacker, defender.mods.counterDamage, source);
+      const cdmg = this.dealDamage(attacker, defender.mods.counterDamage, source, `${defender.name}の反撃`);
       defender.stats.damageDealt += cdmg;
       this.pushLog(`🔁 ${defender.name}の反撃！${attacker.name}に${cdmg}ダメージ`);
       this.pushEvent({ type: 'special', side: defender.side, label: '反撃', icon: '🔁' });
@@ -659,7 +691,7 @@ export class BattleEngine {
         if (defender.isDead) continue;
         // 固定ダメージ: 防御・被ダメージ軽減を無視する別ダメージ種
         const amount = e.amount + attacker.fixedDamageBonus;
-        const applied = this.dealDamage(defender, amount, source);
+        const applied = this.dealDamage(defender, amount, source, `${attacker.name}の${part.name}(固定)`);
         attacker.stats.damageDealt += applied;
         this.pushLog(`🦴 ${attacker.name}の${part.icon}${part.name}が${defender.name}に固定${applied}ダメージ`);
         this.pushEvent({
@@ -708,7 +740,7 @@ export class BattleEngine {
     // プレイヤーが受けた状態異常ダメージ(c===player)は内訳集計に混ざらない。
     if (c.poison.value > 0 && !c.isDead) {
       const dmg = c.poison.value;
-      const applied = this.dealDamage(c, dmg, { kind: 'status' });
+      const applied = this.dealDamage(c, dmg, { kind: 'status' }, '毒');
       this.pushLog(`☠️ ${c.name}は毒で${applied}ダメージ`);
       this.pushEvent({ type: 'poison_tick', side: c.side, damage: applied });
       const skipDecay = Math.random() < c.poison.noDecayChance;
@@ -721,7 +753,7 @@ export class BattleEngine {
       }
     }
     if (c.burn && !c.isDead) {
-      const applied = this.dealDamage(c, c.burn.dps, { kind: 'status' });
+      const applied = this.dealDamage(c, c.burn.dps, { kind: 'status' }, '炎上');
       this.pushLog(`🔥 ${c.name}は炎上で${applied}ダメージ`);
       this.pushEvent({ type: 'burn_tick', side: c.side, damage: applied });
       c.burn.timeLeft -= STATUS_TICK_INTERVAL;
@@ -809,7 +841,7 @@ export class BattleEngine {
 
     if (result.directDamageToPlayer > 0 && !this.player.isDead) {
       const finalDamage = this.applyDefenseAndReduction(result.directDamageToPlayer, this.player);
-      const applied = this.dealDamage(this.player, finalDamage, AUTO_SOURCE);
+      const applied = this.dealDamage(this.player, finalDamage, AUTO_SOURCE, `${this.enemy.name}の固有ギミック`);
       this.enemy.stats.damageDealt += applied;
       // TEST8統合: 通常攻撃(resolveAttack)を経由しないギミック直接ダメージも、
       // ダメージ数値の演出+SEに反映されるよう専用イベントを発生させる。
@@ -840,7 +872,7 @@ export class BattleEngine {
     // 持続回復(多重鼓動・竜脈再生)
     for (const e of this.player.activeEffects) {
       if (e.kind === 'heal_over_time' && e.values.pctPerSec) {
-        this.healPlayer(this.player.maxHp * (e.values.pctPerSec / 100) * dt, false);
+        this.healPlayer(this.player.maxHp * (e.values.pctPerSec / 100) * dt, false, e.sourceCommandId);
       }
     }
   }
@@ -865,13 +897,20 @@ export class BattleEngine {
 
   // プレイヤーのHPを回復する共通処理(ログ・statsの二重管理を避けるための唯一の入口)。
   // logをtrueにすると即時回復として1行ログを出す(継続回復は毎フレーム呼ばれるため既定でログを出さない)。
-  private healPlayer(amount: number, log = true) {
+  // commandIdはバランス計測(TEST12)向けのコマンド別回復量集計用(省略可・戦闘挙動には影響しない)。
+  // healPlayer()は現状すべてコマンド由来の回復(即時回復・持続回復バフ)からしか呼ばれない。
+  private healPlayer(amount: number, log = true, commandId?: string) {
     if (amount <= 0) return;
     const before = this.player.hp;
     this.player.hp = Math.min(this.player.maxHp, this.player.hp + amount);
     const healed = this.player.hp - before;
     this.player.stats.healed += healed;
-    if (this.commandsEnabled) this.resultStats.healed += healed;
+    if (this.commandsEnabled) {
+      this.resultStats.healed += healed;
+      if (commandId && healed > 0) {
+        this.resultStats.commandHealByCommand[commandId] = (this.resultStats.commandHealByCommand[commandId] ?? 0) + healed;
+      }
+    }
     if (healed > 0 && log) {
       // 継続回復(heal_over_time)の毎フレーム加算はlog=falseで呼ばれるため、
       // ここでは即時回復(応急再生・多重鼓動の初速分など)のみイベント化する。
@@ -1019,6 +1058,7 @@ export class BattleEngine {
     this.commandCooldowns[cmd.commandId] = cmd.cooldownSeconds;
     this.commandInputLock = COMMAND_BALANCE.commandInputLockSeconds;
     this.lastCommandEvent = { name: cmd.name, icon: cmd.icon, color: cmd.color, category: cmd.category, time: this.time };
+    this.resultStats.commandUsageByCommand[cmd.commandId] = (this.resultStats.commandUsageByCommand[cmd.commandId] ?? 0) + 1;
     this.pushLog(`⚡[コマンド] ${cmd.name}を発動！`);
     this.pushEvent({ type: 'command', commandId: cmd.commandId, name: cmd.name, icon: cmd.icon, color: cmd.color, category: cmd.category });
 
@@ -1070,7 +1110,7 @@ export class BattleEngine {
         break;
       }
       case 'emergency_regen': {
-        this.healPlayer(this.player.maxHp * (v.healPctOfMax / 100));
+        this.healPlayer(this.player.maxHp * (v.healPctOfMax / 100), true, cmd.commandId);
         break;
       }
       case 'all_arms_volley':
@@ -1097,7 +1137,7 @@ export class BattleEngine {
         const dmg = v.damage * this.vulnerabilityMultiplier(this.enemy);
         const applied = this.dealDamage(this.enemy, dmg, src);
         this.player.stats.damageDealt += applied;
-        this.healPlayer(applied * (v.lifestealPct / 100));
+        this.healPlayer(applied * (v.lifestealPct / 100), true, cmd.commandId);
         this.pushLog(`🩸 捕食咬み！${applied}ダメージ`);
         break;
       }
@@ -1220,7 +1260,7 @@ export class BattleEngine {
       }
       case 'heartbeat_heal':
       case 'dragon_vein_heal': {
-        this.healPlayer(this.player.maxHp * (v.instantPct / 100));
+        this.healPlayer(this.player.maxHp * (v.instantPct / 100), true, cmd.commandId);
         this.player.activeEffects = upsertEffect(this.player.activeEffects, {
           key: 'heal_over_time',
           kind: 'heal_over_time',
@@ -1324,11 +1364,49 @@ export class BattleEngine {
   }
 
   debugResetResultStats() {
-    this.resultStats = { autoDamage: 0, commandDamage: 0, statusDamage: 0, healed: 0, maxSingleHit: 0, commandDamageByCommand: {} };
+    this.resultStats = {
+      autoDamage: 0,
+      commandDamage: 0,
+      statusDamage: 0,
+      healed: 0,
+      maxSingleHit: 0,
+      commandDamageByCommand: {},
+      commandUsageByCommand: {},
+      commandHealByCommand: {},
+    };
     this.notify();
   }
 
   isCommandsEnabled(): boolean {
     return this.commandsEnabled;
+  }
+
+  // --- バランス計測(TEST12)向け: 戦闘終了後にUI側が読み取るための追加情報 ---
+  // 装備されていなかった/未使用のコマンドはキーごと存在しない(0埋めしない)。
+  getCommandBreakdown(): Record<string, { count: number; damage: number; heal: number }> {
+    const ids = new Set([
+      ...Object.keys(this.resultStats.commandUsageByCommand),
+      ...Object.keys(this.resultStats.commandDamageByCommand),
+      ...Object.keys(this.resultStats.commandHealByCommand),
+    ]);
+    const out: Record<string, { count: number; damage: number; heal: number }> = {};
+    for (const id of ids) {
+      out[id] = {
+        count: this.resultStats.commandUsageByCommand[id] ?? 0,
+        damage: Math.round(this.resultStats.commandDamageByCommand[id] ?? 0),
+        heal: Math.round(this.resultStats.commandHealByCommand[id] ?? 0),
+      };
+    }
+    return out;
+  }
+
+  // 敗北時のみ非null。プレイヤーへ最後にダメージを与えた要因のラベルを返す。
+  getDeathCause(): string | null {
+    return this.status === 'lost' ? this.lastPlayerDamageCause : null;
+  }
+
+  // 戦闘開始時点で各枠に解決された具体的なcommandId(familyIdではない)。空き枠はnull。
+  getEquippedCommandIds(): (string | null)[] {
+    return this.equippedCommands.map((c) => c?.commandId ?? null);
   }
 }

@@ -84,7 +84,11 @@ export type PartEffect =
   // 全ての部位種類について、能力発動時に低確率でもう一度発動する（暴走遺伝子）
   | { kind: 'double_activation_chance_all'; chance: number }
   // 心臓・臓器の装着数に応じて最大HPと攻撃力が上昇する（巨大心臓）
-  | { kind: 'heart_count_bonus'; hpPerHeart: number; attackPctPerHeart: number };
+  | { kind: 'heart_count_bonus'; hpPerHeart: number; attackPctPerHeart: number }
+  // --- 融合専用能力（ボス撃破後の任意融合でのみ付与される。通常ドロップの部位には付かない） ---
+  // 攻撃命中時、一定確率で追加ダメージを発生させる。ただし1戦闘あたりの発動回数に上限を設け、
+  // 「能力発動が無限に連鎖しない」ことを構造的に保証する（上限はbattle.ts側でmaxActivationsPerBattleを厳守）。
+  | { kind: 'fusion_burst_on_hit'; chance: number; bonusDamagePct: number; maxActivationsPerBattle: number };
 
 export interface PartDef {
   id: string;
@@ -102,6 +106,10 @@ export interface PartDef {
   icon: string;
   color: string;
   effects: PartEffect[];
+  // --- 融合部位のみ設定される（通常ドロップの部位にはundefined） ---
+  isFused?: boolean; // trueの場合、この部位自体をさらに融合の材料にすることはできない（再帰・無限連鎖の防止）
+  fusionSourceIds?: [string, string]; // 融合元となった2部位のdefId
+  fusionRecipeId?: string; // 由来レシピID（図鑑・重複登録判定に使用）
 }
 
 export interface PartInstance {

@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useGame } from '../GameContext';
 import { ALL_PARTS } from '../../data/parts';
 import type { SpeedSetting } from '../../engine/battle';
-import { equippedDefs } from '../../engine/run';
+import { equippedDefs, fusionEligiblePairs } from '../../engine/run';
 import { ALL_COMMANDS, COMMAND_BALANCE, getCommandDef, resolveAllFamilies } from '../../data/commandDefs';
+import { FUSION_RECIPES } from '../../data/fusion';
 import type { Rarity } from '../../data/types';
 import { buildCommandRewardCard, buildPartAcquiredCard } from '../rewardCardBuilders';
 import type { CommandChangeEvent } from '../../engine/commandRewards';
@@ -35,6 +36,7 @@ export function DebugPanel({ onOpenTurnTest, onOpenFreeLayerTest }: { onOpenTurn
   const [selectedPartId, setSelectedPartId] = useState(ALL_PARTS[0]?.id ?? '');
   const [showCommandTest, setShowCommandTest] = useState(false);
   const [showRewardTest, setShowRewardTest] = useState(false);
+  const [selectedFusionRecipeId, setSelectedFusionRecipeId] = useState(FUSION_RECIPES[0]?.id ?? '');
 
   useEffect(() => {
     document.body.classList.toggle('debug-open', open);
@@ -69,6 +71,8 @@ export function DebugPanel({ onOpenTurnTest, onOpenFreeLayerTest }: { onOpenTurn
       if (result !== 'ongoing') {
         dispatch({ type: 'FINISH_BATTLE', result, finalHp: engine.getFinalPlayerHp() });
       }
+    } else if (state.phase === 'fusion') {
+      dispatch({ type: 'RESOLVE_FUSION_STEP' });
     } else if (state.phase === 'drop') {
       dispatch({ type: 'SKIP_DROP' });
       dispatch({ type: 'NEXT_BATTLE' });
@@ -120,6 +124,36 @@ export function DebugPanel({ onOpenTurnTest, onOpenFreeLayerTest }: { onOpenTurn
           <button className="btn btn--small" onClick={() => dispatch({ type: 'DEBUG_ADD_CAPACITY', delta: 5 })}>
             +5
           </button>
+        </div>
+      </div>
+
+      <div className="debug-panel__group">
+        <label>融合(TEST16) 動作確認用</label>
+        <div className="debug-panel__row">
+          <select value={selectedFusionRecipeId} onChange={(e) => setSelectedFusionRecipeId(e.target.value)}>
+            {FUSION_RECIPES.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn btn--small"
+            onClick={() => {
+              const recipe = FUSION_RECIPES.find((r) => r.id === selectedFusionRecipeId);
+              if (!recipe) return;
+              dispatch({ type: 'DEBUG_GRANT_PART', defId: recipe.sourceDefIds[0] });
+              dispatch({ type: 'DEBUG_GRANT_PART', defId: recipe.sourceDefIds[1] });
+            }}
+          >
+            材料2部位を付与
+          </button>
+        </div>
+        <div className="debug-panel__row">
+          <button className="btn btn--small" onClick={() => dispatch({ type: 'DEBUG_FORCE_FUSION_PHASE' })}>
+            融合オファー画面を開く
+          </button>
+          <span className="muted">現在の融合可能組み合わせ: {fusionEligiblePairs(state).length}件</span>
         </div>
       </div>
 

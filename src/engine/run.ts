@@ -11,8 +11,9 @@ import {
 import { computeCapacity, previewCostForNewPart, type CapacityInfo } from './capacity';
 import { computeBonusHp } from './modifiers';
 import { COMMAND_BALANCE, DEFAULT_COMMAND_LOADOUT, resolveFamilyBestCommand } from '../data/commandDefs';
+import { applyFusion, findFusionCandidates, isFusionEligibleTier, type FusionCandidate } from './fusion';
 
-export type GamePhase = 'prep' | 'enemySelect' | 'battle' | 'drop' | 'result';
+export type GamePhase = 'prep' | 'enemySelect' | 'battle' | 'drop' | 'result' | 'fusion';
 export type BattleSlotType = 'normal' | 'elite' | 'miniboss' | 'boss';
 
 // 第1階層(1-8戦)と同じ配置パターンを第2階層(9-16戦)にも繰り返す。
@@ -56,6 +57,10 @@ export interface RunState {
   // まだ報酬演出またはコマンド編集画面で確認していないcommandIdの一覧。
   // 下部ナビゲーション「コマンド」のNEWバッジ表示に使う。
   unseenCommandIds: string[];
+  // 融合(TEST16): 今回のボス撃破に伴う融合オファーで、既に融合を1回使い切ったか。
+  // phase==='fusion'の間だけ意味を持つ。「1回のボス撃破につき融合は最大1回」を
+  // UIの状態管理任せにせず、reducer/engine層でも構造的に担保するためのフラグ。
+  fusionOfferUsed: boolean;
 }
 
 function nextInstanceId(state: RunState): [string, RunState] {
@@ -82,6 +87,7 @@ export function createInitialRunState(): RunState {
     commandLoadout: [...DEFAULT_COMMAND_LOADOUT],
     knownCommandIds: [],
     unseenCommandIds: [],
+    fusionOfferUsed: false,
   };
   for (let i = 0; i < 2; i++) {
     const [id, next] = nextInstanceId(state);
@@ -401,13 +407,65 @@ export function finishBattle(state: RunState, result: 'won' | 'lost', finalPlaye
     permanentCapacityBonus: state.permanentCapacityBonus + capacityGain,
   };
 
+  let settled: RunState;
   if (state.battleIndex >= TOTAL_BATTLES) {
-    return { ...afterWin, phase: 'result', resultOutcome: 'victory' };
+    settled = { ...afterWin, phase: 'result', resultOutcome: 'victory' };
+  } else {
+    const enemy = state.currentEnemy;
+    const candidates = enemy ? generateDropCandidates(enemy, 3 + extraDropCount, deepTier) : [];
+    settled = { ...afterWin, phase: 'drop', dropCandidates: candidates };
   }
 
-  const enemy = state.currentEnemy;
-  const candidates = enemy ? generateDropCandidates(enemy, 3 + extraDropCount, deepTier) : [];
-  return { ...afterWin, phase: 'drop', dropCandidates: candidates };
+  // ボス撃破後（中ボス・ボスのみ）は、通常報酬に進む前に任意の融合オファーを挟む。
+  // 融合可能な部位の組み合わせが1つも無い場合は素通りし、通常のdrop/result遷移のままにする。
+  const defeatedTier = state.currentEnemy?.tier;
+  const canOfferFusion =
+    !!defeatedTier &&
+    isFusionEligibleTier(defeatedTier) &&
+    findFusionCandidates(settled.equipped, settled.inventory).length > 0;
+  return canOfferFusion ? { ...settled, phase: 'fusion', fusionOfferUsed: false } : settled;
+}
+
+// --- 融合（TEST16） ---
+
+export function fusionEligiblePairs(state: RunState): FusionCandidate[] {
+  return findFusionCandidates(state.equipped, state.inventory);
+}
+
+export interface PerformFusionResult {
+  state: RunState;
+  ok: boolean;
+  reason?: string;
+  resultDefId?: string;
+}
+
+// 融合を確定する。材料2部位を消費し、結果部位をインベントリへ追加する。
+// 装着容量には影響しない（結果部位は未装着状態でインベントリに入るため、通常の装着操作を通す）。
+// 「1回のボス撃破につき融合は最大1回」をUIの状態管理任せにせず、fusionOfferUsedフラグで
+// reducer/engine層でも構造的に禁止する（UI側で二重送信されてもここで弾かれる）。
+export function performFusion(state: RunState, recipeId: string): PerformFusionResult {
+  if (state.fusionOfferUsed) {
+    return { state, ok: false, reason: '今回のボス撃破では既に融合を行っています' };
+  }
+  const [instanceId, stateWithSeq] = nextInstanceId(state);
+  const applied = applyFusion(state.equipped, state.inventory, recipeId, instanceId);
+  if (!applied.ok || !applied.equipped || !applied.inventory) {
+    return { state, ok: false, reason: applied.reason ?? '融合に失敗しました' };
+  }
+  const nextState = pruneIneligibleCommandSlots({
+    ...stateWithSeq,
+    equipped: applied.equipped,
+    inventory: applied.inventory,
+    fusionOfferUsed: true,
+  });
+  return { state: nextState, ok: true, resultDefId: applied.resultDefId };
+}
+
+// 融合画面を離れ、本来finishBattleが決定していたはずの遷移先(drop/result)へ進む。
+// 融合した/しなかったに関わらず呼ばれる（「融合をやめて通常報酬へ進める」の実装）。
+export function resolveFusionStep(state: RunState): RunState {
+  if (state.phase !== 'fusion') return state;
+  return { ...state, phase: state.resultOutcome !== null ? 'result' : 'drop', fusionOfferUsed: false };
 }
 
 export interface AcceptDropResult {
@@ -463,4 +521,9 @@ export function debugGrantAndEquipPart(state: RunState, defId: string): RunState
 
 export function toggleVerboseLog(state: RunState): RunState {
   return { ...state, verboseLog: !state.verboseLog };
+}
+
+// 融合オファー画面をボス撃破を経ずに手動で開く（TEST16の動作確認用）。
+export function debugForceFusionPhase(state: RunState): RunState {
+  return { ...state, phase: 'fusion', fusionOfferUsed: false };
 }

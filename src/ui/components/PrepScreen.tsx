@@ -12,6 +12,7 @@ import { CapacityBar } from './CapacityBar';
 import { SynergyPanel } from './SynergyPanel';
 import { ChimeraAvatar } from './ChimeraAvatar';
 import { CodexModal } from './CodexModal';
+import { FusionCodexModal } from './FusionCodexModal';
 import { CommandEditModal } from './CommandEditModal';
 
 type PrepTab = 'status' | 'parts' | 'synergy';
@@ -29,10 +30,11 @@ interface SelectedPart {
 }
 
 export function PrepScreen() {
-  const { state, dispatch, equipError, setEquipError, setShowIntro, chimeraGallery } = useGame();
+  const { state, dispatch, equipError, setEquipError, setShowIntro, chimeraGallery, fusionCodex } = useGame();
   const [tab, setTab] = useState<PrepTab>('parts');
   const [selected, setSelected] = useState<SelectedPart | null>(null);
   const [showGallery, setShowGallery] = useState(false);
+  const [showFusionCodex, setShowFusionCodex] = useState(false);
   const [showCommandEdit, setShowCommandEdit] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const unseenCommandCount = state.unseenCommandIds.length;
@@ -87,6 +89,9 @@ export function PrepScreen() {
           <button className="btn btn--small btn--ghost" onClick={() => setShowGallery(true)} title="図鑑を見る（部位・敵・キメラ）">
             📖{chimeraGallery.length > 0 ? `(${chimeraGallery.length})` : ''}
           </button>
+          <button className="btn btn--small btn--ghost" onClick={() => setShowFusionCodex(true)} title="融合図鑑を見る">
+            🧬{fusionCodex.length > 0 ? `(${fusionCodex.length})` : ''}
+          </button>
           <button className="btn btn--small btn--ghost" onClick={() => setShowMenu(true)} title="その他のメニュー">
             ⋯
           </button>
@@ -94,6 +99,7 @@ export function PrepScreen() {
       </header>
 
       {showGallery && <CodexModal onClose={() => setShowGallery(false)} />}
+      {showFusionCodex && <FusionCodexModal onClose={() => setShowFusionCodex(false)} />}
       {showCommandEdit && <CommandEditModal onClose={() => setShowCommandEdit(false)} />}
       {showMenu && (
         <div className="modal-overlay" onClick={() => setShowMenu(false)}>
@@ -122,6 +128,15 @@ export function PrepScreen() {
                 }}
               >
                 📖 図鑑を見る（部位・敵・キメラ）
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  setShowMenu(false);
+                  setShowFusionCodex(true);
+                }}
+              >
+                🧬 融合図鑑を見る{fusionCodex.length > 0 ? `（${fusionCodex.length}種）` : ''}
               </button>
               <p className="muted">
                 戦闘予定: {BATTLE_SEQUENCE.map((_s, i) => (i + 1 === state.battleIndex ? `【${battleSlotLabelForIndex(i + 1)}】` : '・')).join('')}
