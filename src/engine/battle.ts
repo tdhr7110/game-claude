@@ -29,6 +29,34 @@ import {
 
 export type SpeedSetting = 0 | 1 | 2 | 4;
 export type BattleStatus = 'ongoing' | 'won' | 'lost';
+export type BattleSide = 'player' | 'enemy';
+
+// ------------------------------------------------------------
+// 戦闘演出用イベント(BattleEvent)
+// UIは毎フレームdrainEvents()でこの配列を取り出し、演出・SEに変換する。
+// エンジン側はゲームロジックのみを持ち、描画方法には一切関知しない。
+// ------------------------------------------------------------
+export type BattleEvent =
+  | { type: 'attack'; time: number; side: BattleSide; targetSide: BattleSide; partInstanceId: string; partName: string; partIcon: string; damage: number; isCrit: boolean; isFixed: boolean; source: 'auto' | 'command' | 'status'; commandId?: string }
+  | { type: 'evade'; time: number; side: BattleSide; targetSide: BattleSide }
+  | { type: 'heal'; time: number; side: BattleSide; amount: number }
+  | { type: 'poison_apply'; time: number; side: BattleSide; amount: number }
+  | { type: 'poison_tick'; time: number; side: BattleSide; damage: number }
+  | { type: 'burn_apply'; time: number; side: BattleSide }
+  | { type: 'burn_tick'; time: number; side: BattleSide; damage: number }
+  | { type: 'reflect'; time: number; side: BattleSide; damage: number }
+  | { type: 'command'; time: number; commandId: string; name: string; icon: string; color: string; category: CommandCategory }
+  | { type: 'synergy'; time: number; side: BattleSide; label: string }
+  | { type: 'special'; time: number; side: BattleSide; label: string; icon: string }
+  | { type: 'overkill'; time: number; side: BattleSide; damage: number }
+  | { type: 'victory'; time: number }
+  | { type: 'defeat'; time: number };
+
+const MAX_BUFFERED_EVENTS = 400; // drain漏れ時の安全な上限(4倍速でも際限なく溜め込まない)
+
+// Omit<Union, K> はそのままだとUnionの共通キーしか残らず判別共用体が壊れるため、
+// 条件型でメンバーごとに分配してからOmitする(pushEvent引数の型に使用)。
+type EventWithoutTime<T> = T extends BattleEvent ? Omit<T, 'time'> : never;
 
 const STATUS_TICK_INTERVAL = 1.0; // 毒・炎上の判定間隔（秒）
 const MIN_EFFECTIVE_INTERVAL = 0.15; // 高速化しすぎた場合の下限（無限ループ防止）
@@ -161,7 +189,7 @@ export interface BattleSnapshot {
   metabolism: { current: number; max: number };
   commandSlots: (CommandSlotSnapshot | null)[];
   inputLockRemaining: number;
-  lastCommandEvent: { name: string; category: CommandCategory; time: number } | null;
+  lastCommandEvent: { name: string; icon: string; color: string; category: CommandCategory; time: number } | null;
   resultStats: BattleResultStatsSnapshot;
 }
 
@@ -187,6 +215,7 @@ export class BattleEngine {
   private synergies: ActiveSynergies;
   private verbose: boolean;
   private listeners = new Set<() => void>();
+  private events: BattleEvent[] = [];
 
   // --- コマンドシステム ---
   private commandsEnabled = false;
@@ -199,7 +228,7 @@ export class BattleEngine {
   private commandCooldowns: Record<string, number> = {};
   private commandInputLock = 0;
   private inCommandExecution = false; // 再入防止(全器官解放などの自己再発動ガード)
-  private lastCommandEvent: { name: string; category: CommandCategory; time: number } | null = null;
+  private lastCommandEvent: { name: string; icon: string; color: string; category: CommandCategory; time: number } | null = null;
   private basePlayerPartCooldowns = new Map<string, number>(); // 攻撃速度バフの掛け直し用ベース値
 
   // --- TEST7: 敵固有ギミック ---
@@ -373,6 +402,19 @@ export class BattleEngine {
     if (this.log.length > 80) this.log.length = 80;
   }
 
+  private pushEvent(e: EventWithoutTime<BattleEvent>) {
+    this.events.push({ ...e, time: this.time } as BattleEvent);
+    if (this.events.length > MAX_BUFFERED_EVENTS) this.events.splice(0, this.events.length - MAX_BUFFERED_EVENTS);
+  }
+
+  // UIが毎フレーム呼び出し、蓄積されたイベントを取り出して空にする。
+  drainEvents(): BattleEvent[] {
+    if (this.events.length === 0) return this.events;
+    const out = this.events;
+    this.events = [];
+    return out;
+  }
+
   // ダメージを与える唯一の入口。復活判定もここで行う。
   // sourceはコマンドシステムの内訳集計(オート/コマンド/状態異常)専用で、
   // 省略時は既存呼び出し元と同じ'auto'として扱われ、挙動は一切変わらない。
@@ -385,16 +427,22 @@ export class BattleEngine {
       applied -= absorbed;
       if (absorbed > 0) this.pushLog(`🛡️ ${target.name}の障壁が${absorbed}ダメージを吸収（残り${Math.round(target.shieldValue)}）`);
     }
+    const hpBefore = target.hp;
     target.hp -= applied;
     if (target.hp <= 0) {
       if (!target.reviveUsed && target.mods.reviveHpPct) {
         target.reviveUsed = true;
         target.hp = Math.max(1, Math.round(target.maxHp * target.mods.reviveHpPct));
         this.pushLog(`💫 ${target.name}は致死ダメージから復活した！(HP${target.hp})`);
+        this.pushEvent({ type: 'special', side: target.side, label: '復活', icon: '💫' });
       } else {
         target.hp = 0;
         target.isDead = true;
         this.pushLog(`☠️ ${target.name}は倒れた`);
+        // OVERKILL: とどめの一撃が「倒すのに必要だったHP」を大きく超えている場合に演出対象とする
+        if (hpBefore > 0 && applied >= hpBefore * 1.5) {
+          this.pushEvent({ type: 'overkill', side: target.side, damage: applied });
+        }
       }
     }
     if (this.commandsEnabled && target === this.enemy && applied > 0) {
@@ -446,6 +494,7 @@ export class BattleEngine {
     // 回避判定
     if (Math.random() * 100 < defender.evasionPct) {
       this.pushLog(`💨 ${defender.name}は${attacker.name}の${part.name}を回避した`);
+      this.pushEvent({ type: 'evade', side: attacker.side, targetSide: defender.side });
       return;
     }
 
@@ -466,6 +515,19 @@ export class BattleEngine {
     attacker.stats.damageDealt += applied;
     if (isCrit) attacker.stats.critCount += 1;
     if (this.commandsEnabled && attacker === this.player && applied > 0) this.gainOnHitMetabolism();
+    this.pushEvent({
+      type: 'attack',
+      side: attacker.side,
+      targetSide: defender.side,
+      partInstanceId: part.instanceId,
+      partName: part.name,
+      partIcon: part.icon,
+      damage: applied,
+      isCrit,
+      isFixed: false,
+      source: source.kind,
+      commandId: source.commandId,
+    });
     if (this.verbose) {
       this.pushLog(
         `${attacker.name}の${part.icon}${part.name}: 基礎${Math.round(rawDamage)}${isCrit ? '(会心)' : ''} → 防御${defender.defense}/軽減${defender.damageReductionPct}% 適用後 ${applied}`
@@ -487,6 +549,7 @@ export class BattleEngine {
         if (reflectAmount > 0) {
           const dealt = this.dealDamage(attacker, reflectAmount, { kind: 'command' });
           this.pushLog(`🪞 ${defender.name}の反射甲殻！${attacker.name}に${dealt}ダメージ`);
+          this.pushEvent({ type: 'reflect', side: defender.side, damage: dealt });
         }
       }
     }
@@ -511,6 +574,7 @@ export class BattleEngine {
       const cdmg = this.dealDamage(attacker, defender.mods.counterDamage, source);
       defender.stats.damageDealt += cdmg;
       this.pushLog(`🔁 ${defender.name}の反撃！${attacker.name}に${cdmg}ダメージ`);
+      this.pushEvent({ type: 'special', side: defender.side, label: '反撃', icon: '🔁' });
     }
 
     if (attacker.isDead || defender.isDead) return;
@@ -522,6 +586,7 @@ export class BattleEngine {
         const count = attacker.attackCountByType.arm ?? 0;
         if (count > 0 && count % proc.every === 0) {
           this.pushLog(`⚡ ${attacker.name}のコンボ発動！全ての腕・触手が追加攻撃`);
+          this.pushEvent({ type: 'synergy', side: attacker.side, label: 'コンボ発動' });
           for (const armPart of attacker.parts.filter((p) => p.type === 'arm')) {
             this.resolveAttack(attacker, defender, armPart, false, source, chainDepth + 1);
             if (defender.isDead || attacker.isDead) return;
@@ -536,6 +601,7 @@ export class BattleEngine {
           if (others.length > 0) {
             const extra = others[Math.floor(Math.random() * others.length)];
             this.pushLog(`✨ ${attacker.name}の追撃！`);
+            this.pushEvent({ type: 'synergy', side: attacker.side, label: '追撃' });
             this.resolveAttack(attacker, defender, extra, false, source, chainDepth + 1);
           }
         }
@@ -549,6 +615,7 @@ export class BattleEngine {
       defender.poison.value += amount;
       defender.poison.noDecayChance = Math.max(defender.poison.noDecayChance, attacker.mods.poisonNoDecayChance);
       this.pushLog(`☠️ ${defender.name}に毒+${amount}（合計${defender.poison.value}）`);
+      this.pushEvent({ type: 'poison_apply', side: defender.side, amount });
       if (attacker.mods.onPoisonApplyGainDefense > 0) {
         attacker.defense += attacker.mods.onPoisonApplyGainDefense;
       }
@@ -562,6 +629,7 @@ export class BattleEngine {
         defender.burn.timeLeft = Math.max(defender.burn.timeLeft, duration) + duration * 0.5;
       }
       this.pushLog(`🔥 ${defender.name}が炎上（${Math.round(defender.burn.dps * 10) / 10}dmg/秒 x${Math.round(defender.burn.timeLeft * 10) / 10}秒）`);
+      this.pushEvent({ type: 'burn_apply', side: defender.side });
     }
   }
 
@@ -577,7 +645,10 @@ export class BattleEngine {
         const healed = attacker.hp - before;
         attacker.stats.healed += healed;
         if (this.commandsEnabled && attacker === this.player) this.resultStats.healed += healed;
-        if (healed > 0) this.pushLog(`💚 ${attacker.name}の${part.icon}${part.name}がHP${healed}回復`);
+        if (healed > 0) {
+          this.pushLog(`💚 ${attacker.name}の${part.icon}${part.name}がHP${healed}回復`);
+          this.pushEvent({ type: 'heal', side: attacker.side, amount: healed });
+        }
       } else if (e.kind === 'fixed_damage_tick') {
         if (defender.isDead) continue;
         // 固定ダメージ: 防御・被ダメージ軽減を無視する別ダメージ種
@@ -585,6 +656,19 @@ export class BattleEngine {
         const applied = this.dealDamage(defender, amount, source);
         attacker.stats.damageDealt += applied;
         this.pushLog(`🦴 ${attacker.name}の${part.icon}${part.name}が${defender.name}に固定${applied}ダメージ`);
+        this.pushEvent({
+          type: 'attack',
+          side: attacker.side,
+          targetSide: defender.side,
+          partInstanceId: part.instanceId,
+          partName: part.name,
+          partIcon: part.icon,
+          damage: applied,
+          isCrit: false,
+          isFixed: true,
+          source: source.kind,
+          commandId: source.commandId,
+        });
         if (attacker.mods.fixedDamageGrowthPerProc > 0) {
           attacker.fixedDamageBonus += attacker.mods.fixedDamageGrowthPerProc;
         }
@@ -620,6 +704,7 @@ export class BattleEngine {
       const dmg = c.poison.value;
       const applied = this.dealDamage(c, dmg, { kind: 'status' });
       this.pushLog(`☠️ ${c.name}は毒で${applied}ダメージ`);
+      this.pushEvent({ type: 'poison_tick', side: c.side, damage: applied });
       const skipDecay = Math.random() < c.poison.noDecayChance;
       if (!skipDecay) {
         c.poison.value -= 1;
@@ -632,6 +717,7 @@ export class BattleEngine {
     if (c.burn && !c.isDead) {
       const applied = this.dealDamage(c, c.burn.dps, { kind: 'status' });
       this.pushLog(`🔥 ${c.name}は炎上で${applied}ダメージ`);
+      this.pushEvent({ type: 'burn_tick', side: c.side, damage: applied });
       c.burn.timeLeft -= STATUS_TICK_INTERVAL;
       if (c.burn.timeLeft <= 0) c.burn = null;
     }
@@ -774,7 +860,13 @@ export class BattleEngine {
     const healed = this.player.hp - before;
     this.player.stats.healed += healed;
     if (this.commandsEnabled) this.resultStats.healed += healed;
-    if (log && healed > 0) this.pushLog(`💚 ${Math.round(healed)}回復`);
+    if (healed > 0 && log) {
+      // 継続回復(heal_over_time)の毎フレーム加算はlog=falseで呼ばれるため、
+      // ここでは即時回復(応急再生・多重鼓動の初速分など)のみイベント化する。
+      // 毎フレームイベントを出すと4倍速時に演出・SEが際限なく発生するため。
+      this.pushLog(`💚 ${Math.round(healed)}回復`);
+      this.pushEvent({ type: 'heal', side: 'player', amount: Math.round(healed) });
+    }
   }
 
   private checkEnd(): boolean {
@@ -783,12 +875,14 @@ export class BattleEngine {
       this.player.hp = 0;
       this.status = 'lost';
       this.pushLog('💀 キメラのコアが機能を停止した…敗北');
+      this.pushEvent({ type: 'defeat' });
       return true;
     }
     if (this.enemy.isDead || this.enemy.hp <= 0) {
       this.enemy.hp = 0;
       this.status = 'won';
       this.pushLog(`🎉 ${this.enemy.name}を撃破した！`);
+      this.pushEvent({ type: 'victory' });
       return true;
     }
     return false;
@@ -912,8 +1006,9 @@ export class BattleEngine {
     this.metabolism -= cmd.metabolismCost;
     this.commandCooldowns[cmd.commandId] = cmd.cooldownSeconds;
     this.commandInputLock = COMMAND_BALANCE.commandInputLockSeconds;
-    this.lastCommandEvent = { name: cmd.name, category: cmd.category, time: this.time };
+    this.lastCommandEvent = { name: cmd.name, icon: cmd.icon, color: cmd.color, category: cmd.category, time: this.time };
     this.pushLog(`⚡[コマンド] ${cmd.name}を発動！`);
+    this.pushEvent({ type: 'command', commandId: cmd.commandId, name: cmd.name, icon: cmd.icon, color: cmd.color, category: cmd.category });
 
     this.inCommandExecution = true;
     try {
