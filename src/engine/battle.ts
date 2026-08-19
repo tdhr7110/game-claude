@@ -1,5 +1,6 @@
-import type { EnemyDef, EnemyMove, PartDef, PartType } from '../data/types';
+import type { EnemyDef, EnemyMove, MoveTelegraph, PartDef, PartType } from '../data/types';
 import { computeActiveSynergies, type ActiveSynergies } from './synergyEngine';
+import { createGimmickRuntime, type EnemyGimmickRuntime, type GimmickTickResult } from './enemyGimmickEngine';
 import {
   computeBonusHp,
   computeModifiers,
@@ -48,6 +49,8 @@ interface RuntimePart {
   cooldown: number; // 実効発動間隔（秒）
   timer: number; // 蓄積時間
   activations: number; // このパーツが発動した回数（UI用）
+  telegraph?: MoveTelegraph; // TEST7: 発動直前に一度だけ予兆ログを出す(敵の大技用。省略時は何もしない)
+  telegraphFired: boolean;
 }
 
 interface PoisonState {
@@ -198,6 +201,24 @@ export class BattleEngine {
   private inCommandExecution = false; // 再入防止(全器官解放などの自己再発動ガード)
   private lastCommandEvent: { name: string; category: CommandCategory; time: number } | null = null;
   private basePlayerPartCooldowns = new Map<string, number>(); // 攻撃速度バフの掛け直し用ベース値
+
+  // --- TEST7: 敵固有ギミック ---
+  private gimmick: EnemyGimmickRuntime | null = null;
+  private gimmickResult: GimmickTickResult = {
+    logs: [],
+    defenseDelta: 0,
+    damageReductionDeltaPct: 0,
+    evasionDeltaPct: 0,
+    attackSpeedMultiplier: 1,
+    reflectPct: 0,
+    vulnerabilityDeltaPct: 0,
+    statusAmountBonus: 0,
+    directDamageToPlayer: 0,
+  };
+  private enemyBaseDefense = 0;
+  private enemyBaseDamageReductionPct = 0;
+  private enemyBaseEvasionPct = 0;
+  private baseEnemyPartCooldowns = new Map<string, number>(); // ギミックの攻撃速度倍率の掛け直し用ベース値
   private resultStats = {
     autoDamage: 0,
     commandDamage: 0,
@@ -260,7 +281,7 @@ export class BattleEngine {
     const enemyMods: CombatantModifiers = emptyModifiers();
     const enemyParts: RuntimePart[] = enemyDef.moves
       .filter((m) => m.interval > 0)
-      .map((m: EnemyMove) => this.makeRuntimePart(m.id, m.name, 'arm', m.attack, m.interval, m.effects, m.icon, enemyMods));
+      .map((m: EnemyMove) => this.makeRuntimePart(m.id, m.name, 'arm', m.attack, m.interval, m.effects, m.icon, enemyMods, m.telegraph));
 
     this.enemy = {
       side: 'enemy',
@@ -286,6 +307,13 @@ export class BattleEngine {
     this.pushLog(`戦闘開始: ${enemyDef.name} が現れた！`);
     if (this.player.defense > 0) this.pushLog(`キメラの防御が${this.player.defense}になった`);
 
+    // --- TEST7: 敵固有ギミックの初期化 ---
+    this.gimmick = createGimmickRuntime(enemyDef.gimmicks);
+    this.enemyBaseDefense = this.enemy.defense;
+    this.enemyBaseDamageReductionPct = this.enemy.damageReductionPct;
+    this.enemyBaseEvasionPct = this.enemy.evasionPct;
+    for (const p of enemyParts) this.baseEnemyPartCooldowns.set(p.instanceId, p.cooldown);
+
     // --- コマンドシステムの初期化(loadoutが与えられた場合のみ有効化) ---
     const loadout = options.commandFamilyIds;
     if (loadout && loadout.some((f) => f)) {
@@ -306,10 +334,11 @@ export class BattleEngine {
     baseInterval: number,
     effects: PartDef['effects'],
     icon: string,
-    mods: CombatantModifiers
+    mods: CombatantModifiers,
+    telegraph?: MoveTelegraph
   ): RuntimePart {
     const cooldown = Math.max(MIN_EFFECTIVE_INTERVAL, effectiveInterval(baseInterval, type, mods));
-    return { instanceId, name, type, attack, isPassive: attack === 0, effects, icon, cooldown, timer: 0, activations: 0 };
+    return { instanceId, name, type, attack, isPassive: attack === 0, effects, icon, cooldown, timer: 0, activations: 0, telegraph, telegraphFired: false };
   }
 
   subscribe(cb: () => void): () => void {
@@ -392,10 +421,10 @@ export class BattleEngine {
     // 既存の軽減%とコマンドバフの軽減%は「加算」ではなく、それぞれ独立した乗算で合成する
     // （複数の軽減源が単純加算で100%を超えて破綻しないようにするため）。
     d = d * (1 - defender.damageReductionPct / 100) * (1 - buffReductionPct / 100);
-    if (this.commandsEnabled) {
-      const vulnerabilityPct = sumEffectValue(defender.activeEffects, 'vulnerability', 'vulnerabilityPct');
-      if (vulnerabilityPct > 0) d = d * (1 + vulnerabilityPct / 100);
-    }
+    const cmdVulnerabilityPct = this.commandsEnabled ? sumEffectValue(defender.activeEffects, 'vulnerability', 'vulnerabilityPct') : 0;
+    const gimmickVulnerabilityPct = defender === this.enemy ? this.gimmickResult.vulnerabilityDeltaPct : 0;
+    const vulnerabilityPct = cmdVulnerabilityPct + gimmickVulnerabilityPct;
+    if (vulnerabilityPct > 0) d = d * (1 + vulnerabilityPct / 100);
     return Math.max(1, d);
   }
 
@@ -449,8 +478,10 @@ export class BattleEngine {
 
     // 反射甲殻(コマンドバフ): 被弾側(defender)が反射を持っていれば、軽減前ダメージの一部を跳ね返す。
     // dealDamageを直接呼ぶだけでresolveAttackを再帰しないため、反射から反射は発生しない。
-    if (this.commandsEnabled && applied > 0 && !defender.isDead && !attacker.isDead) {
-      const reflectPct = maxEffectValue(defender.activeEffects, 'reflect', 'reflectPct');
+    if (applied > 0 && !defender.isDead && !attacker.isDead) {
+      const cmdReflectPct = this.commandsEnabled ? maxEffectValue(defender.activeEffects, 'reflect', 'reflectPct') : 0;
+      const gimmickReflectPct = defender === this.enemy ? this.gimmickResult.reflectPct : 0;
+      const reflectPct = Math.max(cmdReflectPct, gimmickReflectPct);
       if (reflectPct > 0) {
         const reflectAmount = Math.max(0, Math.round(rawDamage * (reflectPct / 100)));
         if (reflectAmount > 0) {
@@ -626,15 +657,24 @@ export class BattleEngine {
       if (attacker.side === 'enemy' && this.isStunned(attacker)) continue; // 神経麻痺: 敵の自動攻撃処理を丸ごと止める
       for (const part of attacker.parts) {
         part.timer += dt;
+        // TEST7: 大技の予兆表示(データ駆動。特定の敵IDに依存しない汎用処理)
+        if (part.telegraph && !part.telegraphFired && part.cooldown - part.timer <= part.telegraph.warnBeforeSec) {
+          this.pushLog(part.telegraph.message);
+          part.telegraphFired = true;
+        }
         let guard = 0;
         while (part.timer >= part.cooldown && guard < 20) {
           part.timer -= part.cooldown;
           this.activatePart(attacker, defender, part);
+          part.telegraphFired = false;
           guard += 1;
           if (this.checkEnd()) return;
         }
       }
     }
+
+    this.tickGimmick(dt);
+    if (this.checkEnd()) return;
 
     this.statusTimer += dt;
     while (this.statusTimer >= STATUS_TICK_INTERVAL) {
@@ -646,6 +686,37 @@ export class BattleEngine {
     }
 
     this.checkEnd();
+  }
+
+  // --- TEST7: 敵固有ギミックの毎フレーム更新 ---
+  // 神経麻痺で敵が行動不能の間は、ギミック側の状態変化も止める(通常攻撃と同じ扱いにするため)。
+  private tickGimmick(dt: number) {
+    if (!this.gimmick || this.enemy.isDead) return;
+    if (this.isStunned(this.enemy)) return;
+
+    const result = this.gimmick.tick({
+      dt,
+      time: this.time,
+      enemyHpPct: this.enemy.maxHp > 0 ? this.enemy.hp / this.enemy.maxHp : 0,
+      playerHasBurn: !!this.player.burn,
+    });
+    this.gimmickResult = result;
+    for (const msg of result.logs) this.pushLog(msg);
+
+    this.enemy.defense = this.enemyBaseDefense + result.defenseDelta;
+    this.enemy.damageReductionPct = Math.max(0, this.enemyBaseDamageReductionPct + result.damageReductionDeltaPct);
+    this.enemy.evasionPct = Math.max(0, this.enemyBaseEvasionPct + result.evasionDeltaPct);
+    this.enemy.mods.statusAmountBonus = result.statusAmountBonus;
+    for (const part of this.enemy.parts) {
+      const base = this.baseEnemyPartCooldowns.get(part.instanceId) ?? part.cooldown;
+      part.cooldown = Math.max(MIN_EFFECTIVE_INTERVAL, base / Math.max(0.2, result.attackSpeedMultiplier));
+    }
+
+    if (result.directDamageToPlayer > 0 && !this.player.isDead) {
+      const finalDamage = this.applyDefenseAndReduction(result.directDamageToPlayer, this.player);
+      const applied = this.dealDamage(this.player, finalDamage, AUTO_SOURCE);
+      this.enemy.stats.damageDealt += applied;
+    }
   }
 
   // --- コマンドシステムの毎フレーム更新(代謝ゲージ・クールダウン・バフデバフ) ---

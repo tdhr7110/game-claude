@@ -3,12 +3,13 @@ import type { RunState } from '../engine/run';
 import {
   acceptDrop,
   advanceToNextBattle,
+  chooseEnemy,
   createInitialRunState,
   debugAddCapacity,
   debugFullHeal,
   debugGrantAndEquipPart,
   debugGrantPart,
-  enterBattle,
+  enterEnemySelect,
   equipPart,
   finishBattle,
   markCommandsSeen,
@@ -61,7 +62,8 @@ function loadGalleryFromStorage(): NamedChimera[] {
 type Action =
   | { type: 'EQUIP'; instanceId: string }
   | { type: 'UNEQUIP'; instanceId: string }
-  | { type: 'ENTER_BATTLE' }
+  | { type: 'ENTER_ENEMY_SELECT' }
+  | { type: 'CHOOSE_ENEMY'; enemyId: string }
   | { type: 'FINISH_BATTLE'; result: 'won' | 'lost'; finalHp: number }
   | { type: 'ACCEPT_DROP'; defId: string; wantEquip: boolean }
   | { type: 'SKIP_DROP' }
@@ -82,8 +84,10 @@ function reducer(state: RunState, action: Action): RunState {
       return equipPart(state, action.instanceId).state;
     case 'UNEQUIP':
       return unequipPart(state, action.instanceId);
-    case 'ENTER_BATTLE':
-      return enterBattle(state);
+    case 'ENTER_ENEMY_SELECT':
+      return enterEnemySelect(state);
+    case 'CHOOSE_ENEMY':
+      return chooseEnemy(state, action.enemyId).state;
     case 'FINISH_BATTLE':
       return finishBattle(state, action.result, action.finalHp);
     case 'ACCEPT_DROP':

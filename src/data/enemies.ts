@@ -1,8 +1,15 @@
-import type { EnemyDef, EnemyMove } from './types';
+import type { EnemyDef, EnemyGimmickEffectDef, EnemyMove } from './types';
 
 // ============================================================
 // 敵データ（通常6種、強敵3種、中ボス生成、最終ボス）
 // 新しい敵を追加する場合は NORMAL_ENEMIES / ELITE_ENEMIES に追加するだけでよい。
+//
+// TEST7(敵選択+所持部位ドロップ+固有ギミック)での追加ルール:
+// - bodyPartIds: この敵を撃破した際の通常ドロップ候補プール(最低3個、外見・攻撃と一致させる)
+// - rareDropPartIds: 低確率でのみ出現する特殊ドロップ候補(0件も可)
+// - gimmickSummary: 敵選択画面へ事前表示する説明文(必須)
+// - gimmicks: enemyGimmickEngine.ts が実行時に処理する数値ギミック(0件も可。
+//   予兆表示や複数moveの非同期発動などmoves側だけで完結するものはここに含めない)
 // ============================================================
 
 const NORMAL_ENEMIES: EnemyDef[] = [
@@ -22,6 +29,10 @@ const NORMAL_ENEMIES: EnemyDef[] = [
       { id: 'm1', name: '毒牙', attack: 3, interval: 1.0, tags: ['poison'], effects: [{ kind: 'apply_poison', amount: 1 }], icon: '🦷' },
       { id: 'm2', name: '糸絡め', attack: 2, interval: 2.0, tags: [], effects: [], icon: '🕸️' },
     ],
+    bodyPartIds: ['insect_poison_needle_arm', 'insect_spider_leg', 'insect_poison_gland'],
+    rareDropPartIds: ['insect_web_mouth'],
+    gimmickSummary: '時間の経過とともに毒の付与量が増えていく。長期戦になるほど危険なので、脱皮で毒を解除するか早期決着を狙おう。',
+    gimmicks: [{ kind: 'poison_ramp', params: { perSecond: 0.12, cap: 5 } }],
   },
   {
     id: 'sickle_bug',
@@ -39,6 +50,10 @@ const NORMAL_ENEMIES: EnemyDef[] = [
       { id: 'm1', name: '鎌撃', attack: 3, interval: 1.3, tags: [], effects: [], icon: '⚔️' },
       { id: 'm2', name: '鎌撃', attack: 3, interval: 1.3, tags: [], effects: [], icon: '⚔️' },
     ],
+    bodyPartIds: ['insect_sickle_arm', 'insect_spider_leg', 'insect_compound_eye', 'insect_carapace'],
+    rareDropPartIds: [],
+    gimmickSummary: 'HPが50%以下になると攻撃速度が上昇する。身構える・硬質化で被害を抑え、早めに削り切るのも有効。',
+    gimmicks: [{ kind: 'enrage_below_hp', params: { hpThresholdPct: 50, attackSpeedMultiplier: 1.45 } }],
   },
   {
     id: 'small_golem',
@@ -52,7 +67,22 @@ const NORMAL_ENEMIES: EnemyDef[] = [
     description: '鈍重だが硬い岩の身体を持つ。',
     icon: '🗿',
     color: '#78716c',
-    moves: [{ id: 'm1', name: '岩拳', attack: 5, interval: 1.8, tags: [], effects: [], icon: '👊' }],
+    moves: [
+      {
+        id: 'm1',
+        name: '岩拳',
+        attack: 5,
+        interval: 1.8,
+        tags: [],
+        effects: [],
+        icon: '👊',
+        telegraph: { warnBeforeSec: 0.7, message: '⚠️ 小型ゴーレムが岩拳を振りかぶっている！身構えて備えよう' },
+      },
+    ],
+    bodyPartIds: ['golem_rock_arm', 'golem_stone_leg', 'golem_rock_shell'],
+    rareDropPartIds: [],
+    gimmickSummary: '大技(岩拳)の直前に予兆を見せる。予兆が出たら身構える・硬質化で被害を軽減しよう。',
+    gimmicks: [],
   },
   {
     id: 'crystal_golem',
@@ -67,6 +97,10 @@ const NORMAL_ENEMIES: EnemyDef[] = [
     icon: '💠',
     color: '#0e7490',
     moves: [{ id: 'm1', name: '水晶光線', attack: 5, interval: 1.7, tags: [], effects: [], icon: '✨' }],
+    bodyPartIds: ['golem_crystal_eye', 'golem_stone_leg', 'golem_mana_furnace'],
+    rareDropPartIds: ['golem_reflect_armor'],
+    gimmickSummary: '一定間隔で反射状態になり、その間に与えたダメージの一部が跳ね返ってくる。反射中は攻撃を控えて、解けてから畳みかけよう。',
+    gimmicks: [{ kind: 'periodic_reflect', params: { cycleSec: 8, activeSec: 2.5, reflectPct: 30 } }],
   },
   {
     id: 'baby_fire_dragon',
@@ -81,6 +115,10 @@ const NORMAL_ENEMIES: EnemyDef[] = [
     icon: '🐣',
     color: '#c2410c',
     moves: [{ id: 'm1', name: '火の息', attack: 4, interval: 1.8, tags: ['fire'], effects: [{ kind: 'apply_burn', dps: 2, duration: 3 }], icon: '🔥' }],
+    bodyPartIds: ['dragon_flame_head', 'dragon_claw', 'dragon_scale'],
+    rareDropPartIds: [],
+    gimmickSummary: 'こちらが炎上している間、一定間隔で炎上スタックが爆発し追加ダメージを受ける。脱皮で炎上ごと解除すれば防げる。',
+    gimmicks: [{ kind: 'burn_stack_explode', params: { intervalSec: 3.5, damage: 6 } }],
   },
   {
     id: 'wyvern',
@@ -97,6 +135,15 @@ const NORMAL_ENEMIES: EnemyDef[] = [
     moves: [
       { id: 'm1', name: '爪撃', attack: 4, interval: 1.0, tags: [], effects: [], icon: '🐾' },
       { id: 'm2', name: '滑空突撃', attack: 2, interval: 2.0, tags: [], effects: [], icon: '💨' },
+    ],
+    bodyPartIds: ['dragon_wing', 'dragon_claw', 'dragon_scale'],
+    rareDropPartIds: ['dragon_tail'],
+    gimmickSummary: '回避の構えを見せた直後に突撃してくる。突撃の直後は防御が下がるので、そこを狙って反撃しよう。',
+    gimmicks: [
+      {
+        kind: 'evade_charge',
+        params: { cycleSec: 6, evadeDurationSec: 1.2, evasionBonusPct: 35, chargeDamage: 7, exposedDefenseDelta: -3, exposedDurationSec: 3 },
+      },
     ],
   },
 ];
@@ -117,7 +164,12 @@ const ELITE_ENEMIES: EnemyDef[] = [
     moves: [
       { id: 'm1', name: '毒針乱舞', attack: 3, interval: 1.1, tags: ['poison'], effects: [{ kind: 'apply_poison', amount: 1 }], icon: '🪡' },
       { id: 'm2', name: '鎌撃', attack: 3, interval: 1.1, tags: [], effects: [], icon: '⚔️' },
+      { id: 'm3', name: '追加毒針', attack: 1, interval: 4.0, tags: ['poison'], effects: [{ kind: 'apply_poison', amount: 2 }], icon: '🪡' },
     ],
+    bodyPartIds: ['insect_poison_needle_arm', 'insect_web_mouth', 'insect_poison_gland', 'insect_spider_leg'],
+    rareDropPartIds: ['insect_queen_abdomen'],
+    gimmickSummary: '毒針乱舞に加えて一定間隔で追加の毒針を発射し、毒の付与量も時間とともに増えていく。神経麻痺で行動そのものを止めるのが有効。',
+    gimmicks: [{ kind: 'poison_ramp', params: { perSecond: 0.18, cap: 8 } }],
   },
   {
     id: 'colossus_golem',
@@ -132,8 +184,23 @@ const ELITE_ENEMIES: EnemyDef[] = [
     icon: '🗿',
     color: '#44403c',
     moves: [
-      { id: 'm1', name: '大岩拳', attack: 7, interval: 2.4, tags: [], effects: [], icon: '👊' },
+      {
+        id: 'm1',
+        name: '大岩拳',
+        attack: 7,
+        interval: 2.4,
+        tags: [],
+        effects: [],
+        icon: '👊',
+        telegraph: { warnBeforeSec: 0.9, message: '⚠️ 巨像ゴーレムが大岩拳を振りかぶっている！身構えて備えよう' },
+      },
       { id: 'm2', name: '地割れ', attack: 5, interval: 3.0, tags: [], effects: [], icon: '🌋' },
+    ],
+    bodyPartIds: ['golem_giant_fist', 'golem_stone_leg', 'golem_rock_shell', 'golem_reflect_armor'],
+    rareDropPartIds: ['golem_ancient_core'],
+    gimmickSummary: '防御姿勢と攻撃姿勢を周期的に切り替える。防御姿勢は硬いが、攻撃姿勢の間は隙が大きくダメージを通しやすい。大岩拳には予兆もある。',
+    gimmicks: [
+      { kind: 'stance_cycle', params: { cycleSec: 10, guardSec: 5, guardDamageReductionPct: 20, guardDefenseDelta: 4, attackVulnerabilityPct: 22 } },
     ],
   },
   {
@@ -152,6 +219,10 @@ const ELITE_ENEMIES: EnemyDef[] = [
       { id: 'm1', name: '火炎ブレス', attack: 4, interval: 2.0, tags: ['fire'], effects: [{ kind: 'apply_burn', dps: 2, duration: 4 }], icon: '🔥' },
       { id: 'm2', name: '爪撃', attack: 4, interval: 1.2, tags: [], effects: [], icon: '🐾' },
     ],
+    bodyPartIds: ['dragon_claw', 'dragon_scale', 'dragon_heat_gland', 'dragon_wing'],
+    rareDropPartIds: ['dragon_twin_heads'],
+    gimmickSummary: '二つの頭がそれぞれ別の周期(火炎ブレス/爪撃)で同時に攻撃してくる。炎上させた相手には一定間隔で追加の爆発ダメージも入る。',
+    gimmicks: [{ kind: 'burn_stack_explode', params: { intervalSec: 4, damage: 8 } }],
   },
 ];
 
@@ -254,11 +325,17 @@ export function pickEliteEnemy(excludeIds: string[] = []): EnemyDef {
   return src[Math.floor(Math.random() * src.length)];
 }
 
-// 中ボス: 強敵からランダムに1体を強化して使用。
+// 中ボスに追加で付与するギミック(素体のギミックに加えて発動する。「複数ギミック/段階変化」要件用)。
+// 覚醒によりHP50%を切ると攻撃速度が上がり、一時的に反射も纏うようになる。
+const MINIBOSS_AWAKEN_GIMMICK: EnemyGimmickEffectDef = {
+  kind: 'phase_shift_below_hp',
+  params: { hpThresholdPct: 50, attackSpeedMultiplier: 1.2, reflectPct: 15, damageReductionDeltaPct: 5 },
+};
+
+// 中ボス: 指定した強敵素体を強化して使用する。
 // 第1階層(battleIndex<=8)は従来通り未スケーリングの素体を使い、既存の難易度を変えない。
 // 第2階層(battleIndex>8)のみ、素体にscaleEnemyの深層倍率をあらかじめ乗せてから中ボス補正をかける。
-export function buildMiniboss(excludeIds: string[] = [], battleIndex: number = 5): EnemyDef {
-  const rawBase = pickEliteEnemy(excludeIds);
+export function buildMinibossFromBase(rawBase: EnemyDef, battleIndex: number = 5): EnemyDef {
   const base = battleIndex > TIER1_BATTLE_COUNT ? scaleEnemy(rawBase, battleIndex) : rawBase;
   return {
     ...base,
@@ -269,8 +346,20 @@ export function buildMiniboss(excludeIds: string[] = [], battleIndex: number = 5
     defense: base.defense + 2,
     damageReductionPct: base.damageReductionPct + 4,
     moves: base.moves.map((m) => scaleMove(m, 1.12)),
+    gimmickSummary: `${base.gimmickSummary} さらに、HPが50%を切ると覚醒し攻撃速度上昇と一時的な反射を纏う。`,
+    gimmicks: [...base.gimmicks, MINIBOSS_AWAKEN_GIMMICK],
   };
 }
+
+export function buildMiniboss(excludeIds: string[] = [], battleIndex: number = 5): EnemyDef {
+  return buildMinibossFromBase(pickEliteEnemy(excludeIds), battleIndex);
+}
+
+const FINAL_BOSS_GIMMICKS: EnemyGimmickEffectDef[] = [
+  { kind: 'poison_ramp', params: { perSecond: 0.1, cap: 6 } },
+  { kind: 'burn_stack_explode', params: { intervalSec: 4, damage: 10 } },
+  { kind: 'phase_shift_below_hp', params: { hpThresholdPct: 50, attackSpeedMultiplier: 1.25, reflectPct: 12, damageReductionDeltaPct: 6 } },
+];
 
 // 第1階層ボス（8戦目）: 複数種族の部位を持つ巨大キメラ。第2階層では「中間ボス」として再登場する。
 export function buildFinalBoss(): EnemyDef {
@@ -290,8 +379,22 @@ export function buildFinalBoss(): EnemyDef {
       { id: 'm1', name: '複合爪撃', attack: 5, interval: 1.0, tags: [], effects: [], icon: '🐾' },
       { id: 'm2', name: '猛毒噴射', attack: 4, interval: 1.6, tags: ['poison'], effects: [{ kind: 'apply_poison', amount: 2 }], icon: '☠️' },
       { id: 'm3', name: '灼熱ブレス', attack: 5, interval: 2.2, tags: ['fire'], effects: [{ kind: 'apply_burn', dps: 3, duration: 5 }], icon: '🔥' },
-      { id: 'm4', name: '巨腕の一撃', attack: 11, interval: 3.2, tags: [], effects: [], icon: '👊' },
+      {
+        id: 'm4',
+        name: '巨腕の一撃',
+        attack: 11,
+        interval: 3.2,
+        tags: [],
+        effects: [],
+        icon: '👊',
+        telegraph: { warnBeforeSec: 1.1, message: '⚠️ 大キメラが巨腕を振りかぶっている！身構えて備えよう' },
+      },
     ],
+    bodyPartIds: ['dragon_claw', 'insect_poison_gland', 'dragon_flame_head', 'golem_giant_fist', 'golem_ancient_core', 'dragon_scale'],
+    rareDropPartIds: ['special_colossal_heart', 'special_hive_mind', 'dragon_twin_heads'],
+    gimmickSummary:
+      '毒・炎上・大技の予兆をすべて備えた複合ギミック。毒の付与量は時間とともに増加し、炎上中は定期的に爆発ダメージが入る。HPが50%を切ると覚醒し攻撃速度が上がり反射も纏う。巨腕の一撃には予兆がある。',
+    gimmicks: FINAL_BOSS_GIMMICKS,
   };
 }
 
@@ -312,8 +415,49 @@ export function buildDeepFinalBoss(): EnemyDef {
       attack: Math.round(m.attack * 1.15 * 10) / 10,
       effects: m.effects.map((e) => scaleStatusEffect(e, 1.1)),
     })),
+    gimmickSummary: `${base.gimmickSummary}(深層の力によりさらに強化されている)`,
+    gimmicks: base.gimmicks.map((g) =>
+      g.kind === 'phase_shift_below_hp'
+        ? { ...g, params: { ...g.params, attackSpeedMultiplier: (g.params.attackSpeedMultiplier ?? 1) + 0.1 } }
+        : g
+    ),
   };
 }
 
 export const ALL_NORMAL_ENEMIES = NORMAL_ENEMIES;
 export const ALL_ELITE_ENEMIES = ELITE_ENEMIES;
+
+// ------------------------------------------------------------
+// TEST7: 敵選択画面用の候補生成
+// 通常戦・強敵戦・中ボス戦は同じ戦闘ランクのプールから重複しない3体、
+// ボス戦(中間ボス含む)は固定1体のみを返す。
+// ------------------------------------------------------------
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function pickDistinct<T>(pool: T[], count: number): T[] {
+  return shuffle(pool).slice(0, Math.min(count, pool.length));
+}
+
+// 通常戦は6種の母集団があるため、直前に戦った敵を除外しても3体を安定して用意できる。
+export function buildNormalCandidates(battleIndex: number, excludeId?: string, count = 3): EnemyDef[] {
+  const pool = NORMAL_ENEMIES.filter((e) => e.id !== excludeId);
+  return pickDistinct(pool, count).map((base) => scaleEnemy(base, battleIndex));
+}
+
+// 強敵・中ボスは母集団が3種のみのため、選択画面では毎回3体すべてを提示する
+// (連戦をまたいだ重複回避はスケーリング後のステータス差で表現し、候補提示数を優先する)。
+export function buildEliteCandidates(battleIndex: number, count = 3): EnemyDef[] {
+  return pickDistinct(ELITE_ENEMIES, count).map((base) => scaleEnemy(base, battleIndex));
+}
+
+export function buildMinibossCandidates(battleIndex: number, count = 3): EnemyDef[] {
+  return pickDistinct(ELITE_ENEMIES, count).map((base) => buildMinibossFromBase(base, battleIndex));
+}

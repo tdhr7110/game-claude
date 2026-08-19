@@ -57,7 +57,10 @@ export function DebugPanel({ onOpenTurnTest }: { onOpenTurnTest?: () => void }) 
 
   function advance() {
     if (state.phase === 'prep') {
-      dispatch({ type: 'ENTER_BATTLE' });
+      dispatch({ type: 'ENTER_ENEMY_SELECT' });
+    } else if (state.phase === 'enemySelect') {
+      const first = state.enemyCandidates[0];
+      if (first) dispatch({ type: 'CHOOSE_ENEMY', enemyId: first.id });
     } else if (state.phase === 'battle') {
       const engine = battleEngineRef.current;
       if (!engine) return;

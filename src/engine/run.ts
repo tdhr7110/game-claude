@@ -1,11 +1,18 @@
 import type { EnemyDef, EnemyTier, PartDef, PartInstance, Rarity } from '../data/types';
-import { DROPPABLE_PARTS, getPartDef, PARTS_BY_SPECIES, SPECIAL_PART_DEFS, WEAK_ARM } from '../data/parts';
-import { buildDeepFinalBoss, buildFinalBoss, buildMiniboss, pickEliteEnemy, pickNormalEnemy, scaleEnemy, TIER1_BATTLE_COUNT } from '../data/enemies';
+import { getPartDef, WEAK_ARM } from '../data/parts';
+import {
+  buildDeepFinalBoss,
+  buildEliteCandidates,
+  buildFinalBoss,
+  buildMinibossCandidates,
+  buildNormalCandidates,
+  TIER1_BATTLE_COUNT,
+} from '../data/enemies';
 import { computeCapacity, previewCostForNewPart, type CapacityInfo } from './capacity';
 import { computeBonusHp } from './modifiers';
 import { COMMAND_BALANCE, DEFAULT_COMMAND_LOADOUT, resolveFamilyBestCommand } from '../data/commandDefs';
 
-export type GamePhase = 'prep' | 'battle' | 'drop' | 'result';
+export type GamePhase = 'prep' | 'enemySelect' | 'battle' | 'drop' | 'result';
 export type BattleSlotType = 'normal' | 'elite' | 'miniboss' | 'boss';
 
 // 第1階層(1-8戦)と同じ配置パターンを第2階層(9-16戦)にも繰り返す。
@@ -32,6 +39,8 @@ export interface RunState {
   equipped: PartInstance[];
   inventory: PartInstance[];
   currentEnemy: EnemyDef | null;
+  // TEST7: 敵選択画面用に生成した候補。再描画・画面移動で再抽選されないようRunStateへ保持する。
+  enemyCandidates: EnemyDef[];
   dropCandidates: PartDef[];
   lastNormalEnemyId: string | null;
   usedEliteIds: string[];
@@ -63,6 +72,7 @@ export function createInitialRunState(): RunState {
     equipped: [],
     inventory: [],
     currentEnemy: null,
+    enemyCandidates: [],
     dropCandidates: [],
     lastNormalEnemyId: null,
     usedEliteIds: [],
@@ -190,32 +200,59 @@ export function markCommandsSeen(state: RunState, commandIds?: string[]): RunSta
   return { ...state, unseenCommandIds: state.unseenCommandIds.filter((id) => !remove.has(id)) };
 }
 
-// --- 敵生成 ---
+// --- 敵生成(TEST7: 敵選択) ---
+// 通常戦・強敵戦・中ボス戦は同じ戦闘ランクから重複しない3体を提示し、
+// 最終ボス戦(中間ボスも含む'boss'スロット)は固定1体のみを提示する。
+// 生成した候補はRunStateへ保持し、再描画や画面移動で再抽選されないようにする。
 
-function pickEnemyForSlot(state: RunState): { enemy: EnemyDef; state: RunState } {
+function buildCandidatesForSlot(state: RunState): EnemyDef[] {
   const slot = BATTLE_SEQUENCE[state.battleIndex - 1];
   if (slot === 'boss') {
-    // 8戦目は第1階層ボス（中間ボス）、16戦目(最終戦)は覚醒した真の最終ボス
+    // 8戦目は第1階層ボス（中間ボス）、16戦目(最終戦)は覚醒した真の最終ボス。母体は1体のみ。
     const enemy = state.battleIndex >= TOTAL_BATTLES ? buildDeepFinalBoss() : buildFinalBoss();
-    return { enemy, state };
+    return [enemy];
   }
   if (slot === 'miniboss') {
-    const enemy = buildMiniboss(state.usedEliteIds, state.battleIndex);
-    return { enemy, state };
+    return buildMinibossCandidates(state.battleIndex, 3);
   }
   if (slot === 'elite') {
-    const base = pickEliteEnemy(state.usedEliteIds);
-    const enemy = scaleEnemy(base, state.battleIndex);
-    return { enemy, state: { ...state, usedEliteIds: [...state.usedEliteIds, base.id] } };
+    return buildEliteCandidates(state.battleIndex, 3);
   }
-  const base = pickNormalEnemy(state.lastNormalEnemyId ?? undefined);
-  const enemy = scaleEnemy(base, state.battleIndex);
-  return { enemy, state: { ...state, lastNormalEnemyId: base.id } };
+  return buildNormalCandidates(state.battleIndex, state.lastNormalEnemyId ?? undefined, 3);
 }
 
+export function enterEnemySelect(state: RunState): RunState {
+  return { ...state, phase: 'enemySelect', enemyCandidates: buildCandidatesForSlot(state) };
+}
+
+// 敵選択元のidから、通常敵/強敵の素体idを推定する(中ボスは"<eliteId>_miniboss"の形式)。
+// lastNormalEnemyId・usedEliteIdsの更新にのみ使う表示非依存の内部ヘルパー。
+function baseEnemyId(enemy: EnemyDef): string {
+  return enemy.id.endsWith('_miniboss') ? enemy.id.slice(0, -'_miniboss'.length) : enemy.id;
+}
+
+export interface ChooseEnemyResult {
+  state: RunState;
+  ok: boolean;
+  reason?: string;
+}
+
+export function chooseEnemy(state: RunState, enemyId: string): ChooseEnemyResult {
+  const chosen = state.enemyCandidates.find((e) => e.id === enemyId);
+  if (!chosen) return { state, ok: false, reason: '指定された敵候補が見つかりません' };
+
+  const slot = BATTLE_SEQUENCE[state.battleIndex - 1];
+  let next: RunState = { ...state, phase: 'battle', currentEnemy: chosen, enemyCandidates: [] };
+  if (slot === 'normal') next = { ...next, lastNormalEnemyId: baseEnemyId(chosen) };
+  if (slot === 'elite') next = { ...next, usedEliteIds: [...next.usedEliteIds, baseEnemyId(chosen)] };
+  return { state: next, ok: true };
+}
+
+// デバッグ・シミュレーション用: 選択画面を経由せず最初の候補で即座に戦闘へ入る。
 export function enterBattle(state: RunState): RunState {
-  const { enemy, state: next } = pickEnemyForSlot(state);
-  return { ...next, phase: 'battle', currentEnemy: enemy };
+  const withCandidates = enterEnemySelect(state);
+  const first = withCandidates.enemyCandidates[0];
+  return chooseEnemy(withCandidates, first.id).state;
 }
 
 export function tierOfCurrentBattle(state: RunState): BattleSlotType {
@@ -270,6 +307,16 @@ const BASE_RARITY_BY_TIER_DEEP: Record<EnemyTier, Rarity> = {
 const JACKPOT_CHANCE = 0.18; // 通常時、1候補が1段階上のレアリティになる確率
 const JACKPOT_CHANCE_DEEP = 0.25; // 第2階層はやや高め
 
+// TEST7: 敵が実際に持つ部位(bodyPartIds)からのみ通常ドロップを抽選する。
+// レア部位(rareDropPartIds)は敵ランクに応じた低確率の別枠として扱う。
+const RARE_DROP_CHANCE_BY_TIER: Record<EnemyTier, number> = {
+  normal: 0.06,
+  elite: 0.1,
+  miniboss: 0.13,
+  boss: 0.16,
+};
+const RARE_DROP_CHANCE_DEEP_BONUS = 0.04; // 深層はレア枠の出現確率をやや底上げする
+
 function rarityForSlot(baseRarity: Rarity, jackpotChance: number): Rarity {
   const baseIdx = RARITY_ORDER.indexOf(baseRarity);
   if (baseIdx < RARITY_ORDER.length - 1 && Math.random() < jackpotChance) {
@@ -284,27 +331,43 @@ function pickFromPoolByRarity(pool: PartDef[], rarity: Rarity, usedIds: Set<stri
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
+function pickRandomExcluding(pool: PartDef[], usedIds: Set<string>): PartDef | null {
+  const candidates = pool.filter((p) => !usedIds.has(p.id));
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+// 敵選択画面に表示されなかった部位が通常ドロップとして出現しないよう、
+// 抽選プールは常にこの敵のbodyPartIds(通常枠)とrareDropPartIds(レア枠)だけに限定する。
+// extra_drop_candidates(完全捕食)はcountを増やすだけで、プール自体は変えない。
 export function generateDropCandidates(enemy: EnemyDef, count = 3, isDeepTier = false): PartDef[] {
   const baseRarity = (isDeepTier ? BASE_RARITY_BY_TIER_DEEP : BASE_RARITY_BY_TIER)[enemy.tier];
   const jackpotChance = isDeepTier ? JACKPOT_CHANCE_DEEP : JACKPOT_CHANCE;
-  const species = enemy.species === 'chimera' ? null : enemy.species;
-  // 種族プール + 特殊部位（無属性のため、どの種族の敵からでもドロップし得る）。
-  // 種族プールが無い場合（最終ボス等）は全部位から抽選。
-  const pool = !species || species === 'none' ? DROPPABLE_PARTS : [...PARTS_BY_SPECIES[species], ...SPECIAL_PART_DEFS];
+  const rareChance = RARE_DROP_CHANCE_BY_TIER[enemy.tier] + (isDeepTier ? RARE_DROP_CHANCE_DEEP_BONUS : 0);
+
+  const bodyPool = enemy.bodyPartIds.map(getPartDef);
+  const rarePool = enemy.rareDropPartIds.map(getPartDef);
 
   const result: PartDef[] = [];
   const usedIds = new Set<string>();
   for (let i = 0; i < count; i++) {
-    const rarity = rarityForSlot(baseRarity, jackpotChance);
-    let pick = pickFromPoolByRarity(pool, rarity, usedIds);
+    let pick: PartDef | null = null;
+    if (rarePool.length > 0 && Math.random() < rareChance) {
+      pick = pickRandomExcluding(rarePool, usedIds);
+    }
     if (!pick) {
-      // そのレアリティの在庫が尽きた場合は他のレアリティから補う
-      for (const r of RARITY_ORDER) {
-        pick = pickFromPoolByRarity(pool, r, usedIds);
-        if (pick) break;
+      const rarity = rarityForSlot(baseRarity, jackpotChance);
+      pick = pickFromPoolByRarity(bodyPool, rarity, usedIds);
+      if (!pick) {
+        // そのレアリティの在庫が尽きた場合は、この敵の通常部位プール内の他レアリティから補う
+        for (const r of RARITY_ORDER) {
+          pick = pickFromPoolByRarity(bodyPool, r, usedIds);
+          if (pick) break;
+        }
       }
     }
-    if (!pick) break; // プール自体が尽きた
+    if (!pick) pick = pickRandomExcluding(rarePool, usedIds); // 通常枠が尽きた場合のみレア枠から補う
+    if (!pick) break; // この敵のドロッププール自体が尽きた
     usedIds.add(pick.id);
     result.push(pick);
   }
@@ -369,7 +432,7 @@ export function skipDrop(state: RunState): RunState {
 }
 
 export function advanceToNextBattle(state: RunState): RunState {
-  return { ...state, battleIndex: state.battleIndex + 1, phase: 'prep', currentEnemy: null, dropCandidates: [] };
+  return { ...state, battleIndex: state.battleIndex + 1, phase: 'prep', currentEnemy: null, enemyCandidates: [], dropCandidates: [] };
 }
 
 export function resetRun(): RunState {
