@@ -1,14 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../GameContext';
-import { BattleEngine, type BattleSnapshot, type CombatantSnapshot, type CommandSlotSnapshot, type SpeedSetting } from '../../engine/battle';
+import { BattleEngine, type BattleEvent, type BattleSnapshot, type CombatantSnapshot, type CommandSlotSnapshot, type SpeedSetting } from '../../engine/battle';
 import { getPartDef } from '../../data/parts';
 import { CORE_HP_BASE, BASE_DEFENSE, getCapacityInfo, TOTAL_BATTLES } from '../../engine/run';
-import { ChimeraAvatar } from './ChimeraAvatar';
+import { BattleFigure, dominantSpeciesColor, groupCountByType, figureArmsFromSnapshot } from './BattleFigure';
+import { FloatingNumbers, HitCounter, ToastList, OverkillBanner, type Floater, type Toast } from './BattleEffects';
 import { CapacityBar } from './CapacityBar';
 import { formatBigNumber } from '../format';
+import { playSE, getSESettings, setSEMuted, setSEVolume, subscribeSESettings, initAudioUnlock } from '../../engine/soundManager';
 import '../commandSystem.css';
 
 const SPEED_OPTIONS: SpeedSetting[] = [0, 1, 2, 4];
+// --- 戦闘演出のチューニング値 ---
+const FLOATER_TTL_MS = 1100;
+const TOAST_TTL_MS = 1500;
+const FLOATER_CAP_PER_FRAME = 14; // 1フレームで新規生成する数字の上限(4倍速の多段攻撃対策)
+const FLOATER_MAX_ONSCREEN = 40; // 同時表示数の上限
+const TOAST_MAX_ONSCREEN = 6;
+const BIG_DAMAGE_THRESHOLD = 20;
+const HIT_RESET_GAME_SECONDS = 1.2; // この秒数だけ無被弾が続くとHITカウンターをリセット
+const SHAKE_MS = 260;
+const FLASH_MS = 260;
+const OVERKILL_MS = 900;
 
 const EFFECT_KIND_ICONS: Record<string, string> = {
   attack_speed: '💨',
@@ -136,6 +149,36 @@ function ResultBreakdown({ snapshot }: { snapshot: BattleSnapshot }) {
   );
 }
 
+function SoundSettings() {
+  const [settings, setSettingsState] = useState(getSESettings());
+  useEffect(() => subscribeSESettings(() => setSettingsState(getSESettings())), []);
+  return (
+    <div className="sound-settings">
+      <button className={`btn btn--small${!settings.muted ? ' btn--active' : ''}`} onClick={() => setSEMuted(!settings.muted)} title="効果音のミュート切り替え">
+        {settings.muted ? '🔇' : '🔊'}
+      </button>
+      <input
+        type="range"
+        min={0}
+        max={1}
+        step={0.05}
+        value={settings.volume}
+        onChange={(e) => setSEVolume(parseFloat(e.target.value))}
+        disabled={settings.muted}
+        className="sound-settings__volume"
+        title="効果音の音量"
+      />
+    </div>
+  );
+}
+
+function synergyGlowFor(snapshot: BattleSnapshot): 'poison' | 'fire' | 'defense' | null {
+  if (snapshot.synergies.species.insect.activeTiers.length > 0) return 'poison';
+  if (snapshot.synergies.species.dragon.activeTiers.length > 0) return 'fire';
+  if (snapshot.synergies.partType.skin.activeTiers.length > 0) return 'defense';
+  return null;
+}
+
 function PartActivityList({ label, parts }: { label: string; parts: CombatantSnapshot['parts'] }) {
   return (
     <div className="part-activity-list">
@@ -160,10 +203,32 @@ export function BattleScreen() {
   const [snapshot, setSnapshot] = useState<BattleSnapshot | null>(null);
   const [glowSlot, setGlowSlot] = useState<number | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [shakeOn, setShakeOn] = useState(false);
+  const [flashOn, setFlashOn] = useState(false);
+  const [overkillOn, setOverkillOn] = useState(false);
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
   const avatarDefs = useMemo(() => state.equipped.map((i) => getPartDef(i.defId)), [state.equipped]);
+  const playerCounts = useMemo(() => groupCountByType(avatarDefs), [avatarDefs]);
+  const playerColor = useMemo(() => dominantSpeciesColor(avatarDefs), [avatarDefs]);
   const capacity = useMemo(() => getCapacityInfo(state), [state]);
+
+  // 演出は頻度が高く、React stateにすると再レンダーが際限なく増えるため、
+  // ref配列 + 低頻度なeffectsTick更新でDOM反映する(TEST4のフローティング数字処理を踏襲)。
+  const floatersRef = useRef<Floater[]>([]);
+  const toastsRef = useRef<(Toast & { createdAt: number })[]>([]);
+  const playerPulsesRef = useRef<Record<string, number>>({});
+  const enemyPulsesRef = useRef<Record<string, number>>({});
+  const floaterIdRef = useRef(0);
+  const toastIdRef = useRef(0);
+  const hitCountRef = useRef(0);
+  const lastHitGameTimeRef = useRef(0);
+  const prevPlayerGuardRef = useRef(false);
+  const prevEnemyGuardRef = useRef(false);
+
+  useEffect(() => {
+    initAudioUnlock();
+  }, []);
 
   useEffect(() => {
     if (!state.currentEnemy) return;
@@ -178,12 +243,130 @@ export function BattleScreen() {
     battleEngineRef.current = engine;
     setSnapshot(engine.getSnapshot());
     lastTimeRef.current = performance.now();
+    floatersRef.current = [];
+    toastsRef.current = [];
+    playerPulsesRef.current = {};
+    enemyPulsesRef.current = {};
+    hitCountRef.current = 0;
+    lastHitGameTimeRef.current = 0;
+    prevPlayerGuardRef.current = false;
+    prevEnemyGuardRef.current = false;
+
+    function spawnFloaterForAttack(e: Extract<BattleEvent, { type: 'attack' }>, now: number) {
+      const kind = e.isFixed ? 'fixed' : e.isCrit ? 'crit' : e.damage >= BIG_DAMAGE_THRESHOLD ? 'big' : 'normal';
+      floatersRef.current.push({
+        id: ++floaterIdRef.current,
+        side: e.targetSide,
+        text: `${e.isFixed ? '固定' : ''}${e.damage}`,
+        kind,
+        createdAt: now,
+        xPct: 25 + Math.random() * 50,
+      });
+    }
+
+    function processEvents(events: BattleEvent[], gameTime: number) {
+      if (events.length === 0) return;
+      const now = performance.now();
+      const attackEvents = events.filter((e): e is Extract<BattleEvent, { type: 'attack' }> => e.type === 'attack');
+
+      const toShow = attackEvents.slice(0, FLOATER_CAP_PER_FRAME);
+      const overflow = attackEvents.slice(FLOATER_CAP_PER_FRAME);
+      for (const e of toShow) spawnFloaterForAttack(e, now);
+      if (overflow.length > 0) {
+        const bySide = new Map<'player' | 'enemy', { sum: number; count: number }>();
+        for (const e of overflow) {
+          const cur = bySide.get(e.targetSide) ?? { sum: 0, count: 0 };
+          cur.sum += e.damage;
+          cur.count += 1;
+          bySide.set(e.targetSide, cur);
+        }
+        for (const [side, agg] of bySide) {
+          floatersRef.current.push({ id: ++floaterIdRef.current, side, text: `+${agg.sum}(${agg.count}HIT)`, kind: 'merged', createdAt: now, xPct: 50 });
+        }
+      }
+
+      for (const e of attackEvents) {
+        const pulses = e.side === 'player' ? playerPulsesRef.current : enemyPulsesRef.current;
+        pulses[e.partInstanceId] = (pulses[e.partInstanceId] ?? 0) + 1;
+        if (e.isCrit) playSE('crit');
+        else playSE('hit');
+      }
+      if (attackEvents.length > 0) {
+        hitCountRef.current += attackEvents.length;
+        lastHitGameTimeRef.current = gameTime;
+      }
+
+      for (const e of events) {
+        if (e.type === 'evade') {
+          floatersRef.current.push({ id: ++floaterIdRef.current, side: e.targetSide, text: 'MISS', kind: 'evade', createdAt: now, xPct: 25 + Math.random() * 50 });
+        } else if (e.type === 'heal') {
+          floatersRef.current.push({ id: ++floaterIdRef.current, side: e.side, text: `+${e.amount}`, kind: 'heal', createdAt: now, xPct: 25 + Math.random() * 50 });
+          playSE('heal');
+        } else if (e.type === 'poison_apply' || e.type === 'poison_tick') {
+          const amount = e.type === 'poison_apply' ? e.amount : e.damage;
+          floatersRef.current.push({ id: ++floaterIdRef.current, side: e.side, text: `☠️${amount}`, kind: 'poison', createdAt: now, xPct: 25 + Math.random() * 50 });
+          playSE('poison');
+        } else if (e.type === 'burn_apply') {
+          playSE('burn');
+        } else if (e.type === 'burn_tick') {
+          floatersRef.current.push({ id: ++floaterIdRef.current, side: e.side, text: `🔥${e.damage}`, kind: 'burn', createdAt: now, xPct: 25 + Math.random() * 50 });
+          playSE('burn');
+        } else if (e.type === 'reflect') {
+          floatersRef.current.push({ id: ++floaterIdRef.current, side: e.side === 'player' ? 'enemy' : 'player', text: `🪞${e.damage}`, kind: 'fixed', createdAt: now, xPct: 50 });
+          playSE('reflect');
+        } else if (e.type === 'command') {
+          playSE('command');
+        } else if (e.type === 'synergy') {
+          toastsRef.current.push({ id: ++toastIdRef.current, label: e.label, icon: '✨', side: e.side, kind: 'synergy', createdAt: now });
+        } else if (e.type === 'special') {
+          toastsRef.current.push({ id: ++toastIdRef.current, label: e.label, icon: e.icon, side: e.side, kind: 'special', createdAt: now });
+        } else if (e.type === 'overkill') {
+          setOverkillOn(true);
+          setTimeout(() => setOverkillOn(false), OVERKILL_MS);
+          setShakeOn(true);
+          setTimeout(() => setShakeOn(false), SHAKE_MS);
+          setFlashOn(true);
+          setTimeout(() => setFlashOn(false), FLASH_MS);
+        } else if (e.type === 'victory') {
+          playSE('victory');
+        } else if (e.type === 'defeat') {
+          playSE('defeat');
+        }
+      }
+
+      floatersRef.current = floatersRef.current.filter((f) => now - f.createdAt < FLOATER_TTL_MS).slice(-FLOATER_MAX_ONSCREEN);
+      toastsRef.current = toastsRef.current.filter((t) => now - t.createdAt < TOAST_TTL_MS).slice(-TOAST_MAX_ONSCREEN);
+    }
 
     function loop(now: number) {
       const dt = (now - lastTimeRef.current) / 1000;
       lastTimeRef.current = now;
       engine.tick(dt);
-      setSnapshot(engine.getSnapshot());
+      const snap = engine.getSnapshot();
+      const events = engine.drainEvents();
+      processEvents(events, snap.time);
+
+      if (snap.time - lastHitGameTimeRef.current > HIT_RESET_GAME_SECONDS) hitCountRef.current = 0;
+
+      const playerGuardNow = snap.player.activeEffects.some((e) => e.kind === 'damage_reduction' || e.kind === 'reflect');
+      if (playerGuardNow && !prevPlayerGuardRef.current) playSE('guard');
+      prevPlayerGuardRef.current = playerGuardNow;
+      const enemyGuardNow = snap.enemy.activeEffects.some((e) => e.kind === 'damage_reduction' || e.kind === 'reflect');
+      if (enemyGuardNow && !prevEnemyGuardRef.current) playSE('guard');
+      prevEnemyGuardRef.current = enemyGuardNow;
+
+      // 演出の寿命切れをここでも掃除する(tickでイベントが無いフレームが続いても
+      // 表示が残り続けないようにするため。DOM要素数の上限を保証する)。
+      // setSnapshot()が毎フレーム再レンダーを起こすため、専用の再描画トリガーは不要。
+      const wallNow = performance.now();
+      if (floatersRef.current.some((f) => wallNow - f.createdAt >= FLOATER_TTL_MS)) {
+        floatersRef.current = floatersRef.current.filter((f) => wallNow - f.createdAt < FLOATER_TTL_MS);
+      }
+      if (toastsRef.current.some((t) => wallNow - t.createdAt >= TOAST_TTL_MS)) {
+        toastsRef.current = toastsRef.current.filter((t) => wallNow - t.createdAt < TOAST_TTL_MS);
+      }
+
+      setSnapshot(snap);
       rafRef.current = requestAnimationFrame(loop);
     }
     rafRef.current = requestAnimationFrame(loop);
@@ -221,13 +404,22 @@ export function BattleScreen() {
   }
 
   const enemyDef = state.currentEnemy;
+  const enemyArms = figureArmsFromSnapshot(snapshot.enemy);
+  const playerArms = figureArmsFromSnapshot(snapshot.player);
+  const glow = synergyGlowFor(snapshot);
+  const playerGuardActive = snapshot.player.activeEffects.some((e) => e.kind === 'damage_reduction');
+  const playerReflectActive = snapshot.player.activeEffects.some((e) => e.kind === 'reflect');
+  const playerRampageActive = snapshot.player.activeEffects.some((e) => e.kind === 'attack_speed');
+  const enemyGuardActive = snapshot.enemy.activeEffects.some((e) => e.kind === 'damage_reduction');
+  const enemyReflectActive = snapshot.enemy.activeEffects.some((e) => e.kind === 'reflect');
 
   return (
-    <div className="screen battle-screen-v2">
+    <div className={`screen battle-screen-v2${shakeOn ? ' battle-screen-v2--shake' : ''}`}>
       <header className="screen__header battle-header-v2">
         <h1>⚔️ 第{snapshot.battleIndex}戦 / 全{TOTAL_BATTLES}戦</h1>
         <div className="battle-header-v2__right">
           <span className="muted">{snapshot.time.toFixed(1)}秒</span>
+          <SoundSettings />
         </div>
       </header>
 
@@ -242,25 +434,61 @@ export function BattleScreen() {
         <div className="battle-stage__arena">
           <div className="battle-stage__enemy-figure">
             <div className="figure-anchor">
-              <div
-                className="cmd-enemy-figure"
-                style={{ background: `radial-gradient(circle, ${enemyDef?.color ?? '#7c3aed'}33, transparent 70%)` }}
-              >
-                <span style={{ opacity: snapshot.enemy.isDead ? 0.35 : 1 }}>{enemyDef?.icon ?? '👹'}</span>
-              </div>
+              <BattleFigure
+                side="enemy"
+                bodyColor={enemyDef?.color ?? '#7c3aed'}
+                bodyIcon={enemyDef?.icon ?? '👹'}
+                arms={enemyArms}
+                headCount={0}
+                legCount={0}
+                heartCount={0}
+                skinCount={0}
+                isDead={snapshot.enemy.isDead}
+                rampageActive={false}
+                guardActive={enemyGuardActive}
+                reflectActive={enemyReflectActive}
+                pulses={enemyPulsesRef.current}
+                synergyGlow={null}
+              />
               <FigureStatusBadges c={snapshot.enemy} />
             </div>
           </div>
 
+          <div className="battle-stage__effects-layer">
+            <FloatingNumbers floaters={floatersRef.current} />
+            <ToastList toasts={toastsRef.current} />
+            <HitCounter count={hitCountRef.current} />
+            <OverkillBanner show={overkillOn} />
+            {flashOn && <div className="battle-stage__flash" />}
+          </div>
+
           {snapshot.commandsEnabled && snapshot.lastCommandEvent && (
             <div key={snapshot.lastCommandEvent.time} className={`cmd-stage-banner cmd-stage-banner--${snapshot.lastCommandEvent.category}`}>
+              <span className="cmd-stage-banner__icon" style={{ color: snapshot.lastCommandEvent.color }}>
+                {snapshot.lastCommandEvent.icon}
+              </span>
               {snapshot.lastCommandEvent.name}
             </div>
           )}
 
           <div className="battle-stage__player-figure">
             <div className="figure-anchor">
-              <ChimeraAvatar defs={avatarDefs} size="sm" />
+              <BattleFigure
+                side="player"
+                bodyColor={playerColor}
+                bodyIcon="🧬"
+                arms={playerArms}
+                headCount={playerCounts.head}
+                legCount={playerCounts.leg}
+                heartCount={playerCounts.heart}
+                skinCount={playerCounts.skin}
+                isDead={snapshot.player.isDead}
+                rampageActive={playerRampageActive}
+                guardActive={playerGuardActive}
+                reflectActive={playerReflectActive}
+                pulses={playerPulsesRef.current}
+                synergyGlow={glow}
+              />
               <FigureStatusBadges c={snapshot.player} />
             </div>
           </div>
