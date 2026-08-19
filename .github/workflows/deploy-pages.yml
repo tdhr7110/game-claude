@@ -130,6 +130,25 @@ jobs:
           mkdir -p ../dist/test5
           cp -r dist/. ../dist/test5/
 
+      # フェーズ6（TEST6: 代謝ゲージ駆動コマンドシステム検証版）を /test6/ サブパスに同梱する。
+      # TEST1〜5・正式版とは完全に独立したブランチで、取得・ビルドに失敗しても他のデプロイは継続する。
+      - name: Checkout test6 branch (フェーズ6検証用)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: test6/chimera-butcher-command-system
+          path: test6-branch
+
+      - name: Build test6 branch into /test6/ subpath
+        if: hashFiles('test6-branch/package.json') != ''
+        continue-on-error: true
+        run: |
+          cd test6-branch
+          npm ci
+          npm run build -- --base=/game-claude/test6/
+          mkdir -p ../dist/test6
+          cp -r dist/. ../dist/test6/
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
