@@ -3,7 +3,10 @@ import { useGame } from '../GameContext';
 import { BattleEngine, type BattleEvent, type BattleSnapshot, type CombatantSnapshot, type CommandSlotSnapshot, type SpeedSetting } from '../../engine/battle';
 import { getPartDef } from '../../data/parts';
 import { CORE_HP_BASE, BASE_DEFENSE, getCapacityInfo, TOTAL_BATTLES } from '../../engine/run';
-import { BattleFigure, dominantSpeciesColor, groupCountByType, figureArmsFromSnapshot } from './BattleFigure';
+import { dominantSpeciesColor, groupCountByType } from './BattleFigure';
+// TEST11: 戦闘中のキャラクター表示を自由合体レイヤーの画像合成方式に置き換える(見た目のみの差し替え)。
+import { BattleChimeraFigure } from '../freeLayer/BattleChimeraFigure';
+import { groupPartTypeCounts } from '../freeLayer/freeLayerFromParts';
 import { FloatingNumbers, HitCounter, ToastList, OverkillBanner, type Floater, type Toast } from './BattleEffects';
 import { CapacityBar } from './CapacityBar';
 import { formatBigNumber } from '../format';
@@ -443,8 +446,7 @@ export function BattleScreen() {
   }
 
   const enemyDef = state.currentEnemy;
-  const enemyArms = figureArmsFromSnapshot(snapshot.enemy);
-  const playerArms = figureArmsFromSnapshot(snapshot.player);
+  const enemyCounts = groupPartTypeCounts(snapshot.enemy.parts);
   const glow = synergyGlowFor(snapshot);
   const playerGuardActive = snapshot.player.activeEffects.some((e) => e.kind === 'damage_reduction');
   const playerReflectActive = snapshot.player.activeEffects.some((e) => e.kind === 'reflect');
@@ -473,20 +475,15 @@ export function BattleScreen() {
         <div className="battle-stage__arena">
           <div className="battle-stage__enemy-figure">
             <div className="figure-anchor">
-              <BattleFigure
+              <BattleChimeraFigure
                 side="enemy"
                 bodyColor={enemyDef?.color ?? '#7c3aed'}
                 bodyIcon={enemyDef?.icon ?? '👹'}
-                arms={enemyArms}
-                headCount={0}
-                legCount={0}
-                heartCount={0}
-                skinCount={0}
+                partTypeCounts={enemyCounts}
                 isDead={snapshot.enemy.isDead}
                 rampageActive={false}
                 guardActive={enemyGuardActive}
                 reflectActive={enemyReflectActive}
-                pulses={enemyPulsesRef.current}
                 synergyGlow={null}
               />
               <FigureStatusBadges c={snapshot.enemy} />
@@ -512,20 +509,15 @@ export function BattleScreen() {
 
           <div className="battle-stage__player-figure">
             <div className="figure-anchor">
-              <BattleFigure
+              <BattleChimeraFigure
                 side="player"
                 bodyColor={playerColor}
                 bodyIcon="🧬"
-                arms={playerArms}
-                headCount={playerCounts.head}
-                legCount={playerCounts.leg}
-                heartCount={playerCounts.heart}
-                skinCount={playerCounts.skin}
+                partTypeCounts={playerCounts}
                 isDead={snapshot.player.isDead}
                 rampageActive={playerRampageActive}
                 guardActive={playerGuardActive}
                 reflectActive={playerReflectActive}
-                pulses={playerPulsesRef.current}
                 synergyGlow={glow}
               />
               <FigureStatusBadges c={snapshot.player} />

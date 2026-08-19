@@ -2,6 +2,7 @@
 // 自由合体レイヤー表示コンポーネント。戦闘ロジック・能力計算には一切関与しない、見た目専用の表示。
 import { useState } from 'react';
 import type { CSSProperties } from 'react';
+import './freeLayerCanvas.css';
 import { CHIMERA_LAYERS_BASE } from './useLayerAssets';
 import { computeLayerStyle, placeCategory } from './layoutMath';
 import type { AnchorLayouts, LayerAsset, LayerManifest } from './types';
