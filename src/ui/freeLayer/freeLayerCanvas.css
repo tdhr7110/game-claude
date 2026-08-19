@@ -65,6 +65,13 @@
   background: #22d3ee;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
 }
+.free-layer-canvas__debug-dot--pivot {
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  background: #f472b6;
+  opacity: 0.6;
+}
 
 /* --- 戦闘画面(BattleChimeraFigure)からこのキャンバスを使う場合の見た目調整 ---
    検証画面用の背景・枠線・固定サイズは外し、既存の.battle-figureと同じくラッパーの
@@ -115,4 +122,14 @@
 @keyframes battle-chimera-shield-pulse {
   0%, 100% { opacity: 0.6; }
   50% { opacity: 1; }
+}
+/* prefers-reduced-motionが有効な環境では、点滅アニメーションを止めて固定の半透明表示にする。 */
+@media (prefers-reduced-motion: reduce) {
+  .battle-chimera-figure__shield {
+    animation: none;
+    opacity: 0.85;
+  }
+  .battle-chimera-figure {
+    transition: none;
+  }
 }

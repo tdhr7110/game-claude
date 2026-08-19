@@ -59,3 +59,12 @@
 .free-layer-screen__slider-label {
   min-width: 4.5em;
 }
+
+.free-layer-screen__meta {
+  font-size: 12px;
+}
+
+.free-layer-screen__note {
+  font-size: 12px;
+  line-height: 1.4;
+}

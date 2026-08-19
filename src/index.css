@@ -966,6 +966,11 @@ p {
 .gallery-build .part-grid {
   margin-bottom: 12px;
 }
+.gallery-build__figure {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 14px;
+}
 
 /* ============================================================
    戦闘中コンバタントパネル（旧レイアウト・互換維持）

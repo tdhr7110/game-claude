@@ -1,4 +1,4 @@
-// TEST11: public/assets/chimera-layers/ の layer-manifest.json / anchor-layouts.json の型定義。
+// 自由合体レイヤー表示: public/assets/chimera-layers/layer-manifest.json の型定義。
 // JSONは実行時にfetchして読み込むため、ここには形だけを定義する。
 
 export interface Vec2 {
@@ -23,22 +23,13 @@ export interface LayerManifest {
   assets: LayerAsset[];
 }
 
-export interface AnchorSlot {
-  x: number;
-  y: number;
-  rotation: number;
-  mirror: boolean;
-  z: number;
-}
-
-export interface OverflowRule {
-  visibleLimit: number;
-  mode: 'badge' | 'representative';
-}
-
-export interface AnchorLayouts {
-  version: number;
-  coordinateSystem: string;
-  layouts: Record<string, AnchorSlot[]>;
-  overflow: Record<string, OverflowRule>;
+// 実際に装着されている部位1個分の参照。戦闘ロジック・能力計算とは無関係な
+// 「見た目の解決」専用の入力で、図鑑・戦闘画面のどちらからも同じ形で渡す。
+export interface EquippedPartRef {
+  // 装着インスタンスごとに安定した一意なID(接続位置の並び順・見た目ジッターの種)。
+  instanceId: string;
+  // 部位定義ID(defId・敵の技ID等)。同じpartIdは常に同じ画像に解決される。
+  partId: string;
+  // レイヤー画像カテゴリ(manifestのcategoryと一致させる)。
+  category: string;
 }

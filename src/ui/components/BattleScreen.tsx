@@ -3,10 +3,10 @@ import { useGame } from '../GameContext';
 import { BattleEngine, type BattleEvent, type BattleSnapshot, type CombatantSnapshot, type CommandSlotSnapshot, type SpeedSetting } from '../../engine/battle';
 import { getPartDef } from '../../data/parts';
 import { CORE_HP_BASE, BASE_DEFENSE, getCapacityInfo, TOTAL_BATTLES } from '../../engine/run';
-import { dominantSpeciesColor, groupCountByType } from './BattleFigure';
-// TEST11: 戦闘中のキャラクター表示を自由合体レイヤーの画像合成方式に置き換える(見た目のみの差し替え)。
+import { dominantSpeciesColor } from './BattleFigure';
+// 戦闘中のキャラクター表示は自由合体レイヤーの画像合成方式(部位ID単位で画像を解決)を使う。
 import { BattleChimeraFigure } from '../freeLayer/BattleChimeraFigure';
-import { groupPartTypeCounts } from '../freeLayer/freeLayerFromParts';
+import { enemyPartsToLayerRefs, playerPartsToLayerRefs } from '../freeLayer/freeLayerFromParts';
 import { FloatingNumbers, HitCounter, ToastList, OverkillBanner, type Floater, type Toast } from './BattleEffects';
 import { CapacityBar } from './CapacityBar';
 import { formatBigNumber } from '../format';
@@ -237,7 +237,10 @@ export function BattleScreen() {
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
   const avatarDefs = useMemo(() => state.equipped.map((i) => getPartDef(i.defId)), [state.equipped]);
-  const playerCounts = useMemo(() => groupCountByType(avatarDefs), [avatarDefs]);
+  const playerLayerParts = useMemo(
+    () => playerPartsToLayerRefs(state.equipped.map((i) => ({ instanceId: i.instanceId, defId: i.defId, type: getPartDef(i.defId).type }))),
+    [state.equipped],
+  );
   const playerColor = useMemo(() => dominantSpeciesColor(avatarDefs), [avatarDefs]);
   const capacity = useMemo(() => getCapacityInfo(state), [state]);
 
@@ -446,7 +449,7 @@ export function BattleScreen() {
   }
 
   const enemyDef = state.currentEnemy;
-  const enemyCounts = groupPartTypeCounts(snapshot.enemy.parts);
+  const enemyLayerParts = enemyPartsToLayerRefs(snapshot.enemy.parts);
   const glow = synergyGlowFor(snapshot);
   const playerGuardActive = snapshot.player.activeEffects.some((e) => e.kind === 'damage_reduction');
   const playerReflectActive = snapshot.player.activeEffects.some((e) => e.kind === 'reflect');
@@ -479,7 +482,7 @@ export function BattleScreen() {
                 side="enemy"
                 bodyColor={enemyDef?.color ?? '#7c3aed'}
                 bodyIcon={enemyDef?.icon ?? '👹'}
-                partTypeCounts={enemyCounts}
+                parts={enemyLayerParts}
                 isDead={snapshot.enemy.isDead}
                 rampageActive={false}
                 guardActive={enemyGuardActive}
@@ -513,7 +516,7 @@ export function BattleScreen() {
                 side="player"
                 bodyColor={playerColor}
                 bodyIcon="🧬"
-                partTypeCounts={playerCounts}
+                parts={playerLayerParts}
                 isDead={snapshot.player.isDead}
                 rampageActive={playerRampageActive}
                 guardActive={playerGuardActive}

@@ -8,6 +8,9 @@ import { computeActiveSynergies } from '../../engine/synergyEngine';
 import { computeBonusHp, computeModifiers } from '../../engine/modifiers';
 import { computeCapacity } from '../../engine/capacity';
 import { BASE_CAPACITY, CORE_HP_BASE } from '../../engine/run';
+import { FreeLayerFigure } from '../freeLayer/FreeLayerFigure';
+import { useLayerAssets } from '../freeLayer/useLayerAssets';
+import { playerPartsToLayerRefs } from '../freeLayer/freeLayerFromParts';
 
 interface ChimeraGalleryModalProps {
   onClose: () => void;
@@ -21,6 +24,7 @@ type DetailView = { kind: 'part'; partId: string } | { kind: 'build'; chimeraId:
 export function ChimeraGalleryPanel() {
   const { chimeraGallery } = useGame();
   const [view, setView] = useState<DetailView>(null);
+  const { manifest } = useLayerAssets();
 
   const selectedDef = view?.kind === 'part' ? getPartDef(view.partId) : null;
   const selectedChimera = view?.kind === 'build' ? chimeraGallery.find((c) => c.id === view.chimeraId) ?? null : null;
@@ -33,7 +37,10 @@ export function ChimeraGalleryPanel() {
     const mods = computeModifiers(defs, synergies);
     const capacity = computeCapacity(equipped, BASE_CAPACITY, selectedChimera.permanentCapacityBonus);
     const maxHp = CORE_HP_BASE + computeBonusHp(defs);
-    return { defs, capacity, synergies, critPct: Math.round(mods.critChance * 100), maxHp };
+    // 図鑑でも戦闘画面と同じ自由合体レイヤーレンダラー(FreeLayerFigure)を使い、
+    // 記録されたビルドの見た目を再現する(部位IDは記録済みのpartIdsをそのまま使う)。
+    const layerParts = playerPartsToLayerRefs(equipped.map((e) => ({ instanceId: e.instanceId, defId: e.def.id, type: e.def.type })));
+    return { defs, capacity, synergies, critPct: Math.round(mods.critChance * 100), maxHp, layerParts };
   })();
 
   return (
@@ -108,6 +115,11 @@ export function ChimeraGalleryPanel() {
               {buildOverview.defs.length}個
             </div>
           </div>
+          {manifest && (
+            <div className="gallery-build__figure">
+              <FreeLayerFigure manifest={manifest} parts={buildOverview.layerParts} />
+            </div>
+          )}
           <div className="part-grid">
             {buildOverview.defs.map((def, i) => (
               <PartCard key={`${def.id}-${i}`} def={def} cost={buildOverview.capacity.instanceCosts[`gallery_${i}`]} compact />
