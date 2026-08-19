@@ -4,6 +4,7 @@ import { PrepScreen } from './ui/components/PrepScreen';
 import { BattleScreen } from './ui/components/BattleScreen';
 import { DropScreen } from './ui/components/DropScreen';
 import { ResultScreen } from './ui/components/ResultScreen';
+import { FusionScreen } from './ui/components/FusionScreen';
 import { DebugPanel } from './ui/components/DebugPanel';
 import { IntroModal } from './ui/components/IntroModal';
 import { RewardOverlay } from './ui/components/RewardOverlay';
@@ -15,6 +16,7 @@ function Root({ onOpenTurnTest }: { onOpenTurnTest: () => void }) {
     <div className="app-root">
       {state.phase === 'prep' && <PrepScreen />}
       {state.phase === 'battle' && <BattleScreen />}
+      {state.phase === 'fusion' && <FusionScreen />}
       {state.phase === 'drop' && <DropScreen />}
       {state.phase === 'result' && <ResultScreen />}
       <DebugPanel onOpenTurnTest={onOpenTurnTest} />

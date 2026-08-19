@@ -48,6 +48,7 @@ interface RuntimePart {
   cooldown: number; // 実効発動間隔（秒）
   timer: number; // 蓄積時間
   activations: number; // このパーツが発動した回数（UI用）
+  fusionBurstUses: number; // 融合専用能力(fusion_burst_on_hit)の発動回数。1戦闘ごとにリセットされる
 }
 
 interface PoisonState {
@@ -309,7 +310,7 @@ export class BattleEngine {
     mods: CombatantModifiers
   ): RuntimePart {
     const cooldown = Math.max(MIN_EFFECTIVE_INTERVAL, effectiveInterval(baseInterval, type, mods));
-    return { instanceId, name, type, attack, isPassive: attack === 0, effects, icon, cooldown, timer: 0, activations: 0 };
+    return { instanceId, name, type, attack, isPassive: attack === 0, effects, icon, cooldown, timer: 0, activations: 0, fusionBurstUses: 0 };
   }
 
   subscribe(cb: () => void): () => void {
@@ -474,6 +475,25 @@ export class BattleEngine {
       if (venomPerHit > 0) onHit.push({ kind: 'apply_poison', amount: venomPerHit });
     }
     for (const e of onHit) this.applyOnHitEffect(attacker, defender, e);
+
+    // 融合専用能力: 攻撃命中時、一定確率で追加ダメージが発生する。
+    // maxActivationsPerBattleを超えて発動しないようpart.fusionBurstUsesで厳密にガードし、
+    // 「能力の発動回数は1戦闘あたり有限」であることを保証する（無限ループ・無限連鎖の防止）。
+    if (!defender.isDead && applied > 0) {
+      for (const e of part.effects) {
+        if (e.kind !== 'fusion_burst_on_hit') continue;
+        if (part.fusionBurstUses >= e.maxActivationsPerBattle) continue;
+        if (Math.random() >= e.chance) continue;
+        part.fusionBurstUses += 1;
+        const bonus = Math.max(1, Math.round(rawDamage * (e.bonusDamagePct / 100)));
+        const bonusApplied = this.dealDamage(defender, bonus, source);
+        attacker.stats.damageDealt += bonusApplied;
+        this.pushLog(
+          `✨ ${attacker.name}の${part.icon}${part.name}が融合の追撃！+${bonusApplied}ダメージ（残り発動${e.maxActivationsPerBattle - part.fusionBurstUses}回）`
+        );
+        if (defender.isDead) break;
+      }
+    }
 
     // 被弾側の反撃
     if (defender.mods.counterDamage > 0 && !defender.isDead) {

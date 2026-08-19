@@ -5,6 +5,7 @@ import {
   advanceToNextBattle,
   createInitialRunState,
   debugAddCapacity,
+  debugForceFusionPhase,
   debugFullHeal,
   debugGrantAndEquipPart,
   debugGrantPart,
@@ -12,8 +13,10 @@ import {
   equipPart,
   finishBattle,
   markCommandsSeen,
+  performFusion,
   recordCommandDiscoveries,
   resetRun,
+  resolveFusionStep,
   setCommandSlot,
   skipDrop,
   toggleVerboseLog,
@@ -33,9 +36,42 @@ export interface NamedChimera {
   createdAt: number;
 }
 
+// 融合図鑑（TEST16）: どの融合レシピを何回成立させたかを記録する。
+// キメラ図鑑と同様、ラン進行状況とは別にブラウザへ永続化する。
+export interface FusionCodexEntry {
+  id: string; // = recipeId（重複登録判定・図鑑上のキー）
+  recipeId: string;
+  resultDefId: string;
+  timesCreated: number;
+  firstCreatedAt: number;
+  lastCreatedAt: number;
+}
+
 // キメラ図鑑だけをブラウザに保存する（ラン進行状況はセーブ対象外）。
 // 形式が壊れている・将来スキーマが変わった場合は空配列にフォールバックする。
 const GALLERY_STORAGE_KEY = 'chimera-battle:gallery:v1';
+const FUSION_CODEX_STORAGE_KEY = 'chimera-battle:fusion-codex:v1';
+
+function loadFusionCodexFromStorage(): FusionCodexEntry[] {
+  try {
+    const raw = localStorage.getItem(FUSION_CODEX_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (e): e is FusionCodexEntry =>
+          !!e && typeof e.id === 'string' && typeof e.recipeId === 'string' && typeof e.resultDefId === 'string' && typeof e.firstCreatedAt === 'number'
+      )
+      .map((e) => ({
+        ...e,
+        timesCreated: typeof e.timesCreated === 'number' && e.timesCreated > 0 ? e.timesCreated : 1,
+        lastCreatedAt: typeof e.lastCreatedAt === 'number' ? e.lastCreatedAt : e.firstCreatedAt,
+      }));
+  } catch {
+    return [];
+  }
+}
 
 function loadGalleryFromStorage(): NamedChimera[] {
   try {
@@ -74,7 +110,10 @@ type Action =
   | { type: 'TOGGLE_VERBOSE' }
   | { type: 'SET_COMMAND_SLOT'; slotIndex: number; familyId: string | null }
   | { type: 'RECORD_COMMAND_DISCOVERIES'; commandIds: string[] }
-  | { type: 'MARK_COMMANDS_SEEN'; commandIds?: string[] };
+  | { type: 'MARK_COMMANDS_SEEN'; commandIds?: string[] }
+  | { type: 'CONFIRM_FUSION'; recipeId: string }
+  | { type: 'RESOLVE_FUSION_STEP' }
+  | { type: 'DEBUG_FORCE_FUSION_PHASE' };
 
 function reducer(state: RunState, action: Action): RunState {
   switch (action.type) {
@@ -110,6 +149,12 @@ function reducer(state: RunState, action: Action): RunState {
       return recordCommandDiscoveries(state, action.commandIds);
     case 'MARK_COMMANDS_SEEN':
       return markCommandsSeen(state, action.commandIds);
+    case 'CONFIRM_FUSION':
+      return performFusion(state, action.recipeId).state;
+    case 'RESOLVE_FUSION_STEP':
+      return resolveFusionStep(state);
+    case 'DEBUG_FORCE_FUSION_PHASE':
+      return debugForceFusionPhase(state);
     default:
       return state;
   }
@@ -125,6 +170,9 @@ interface GameContextValue {
   setShowIntro: (v: boolean) => void;
   chimeraGallery: NamedChimera[];
   addNamedChimera: (entry: Omit<NamedChimera, 'id' | 'createdAt'>) => void;
+  // 融合図鑑(TEST16): 融合を確定するたびにFusionScreen側から呼び出して記録する。
+  fusionCodex: FusionCodexEntry[];
+  registerFusionCodexEntry: (recipeId: string, resultDefId: string) => void;
   // コマンドシステムTEST用: 同じ敵と同じビルドのまま、現在の戦闘だけをやり直すためのシグナル。
   // BattleScreenのuseEffectがこの値の変化を検知して戦闘を再構築する(ラン進行自体は変更しない)。
   battleResetSignal: number;
@@ -160,6 +208,21 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setChimeraGallery((prev) => [chimera, ...prev]);
   }, []);
 
+  const [fusionCodex, setFusionCodex] = React.useState<FusionCodexEntry[]>(loadFusionCodexFromStorage);
+  // 同じレシピを再び融合した場合は新規行を増やさず、既存エントリの回数を加算する
+  // （図鑑は「レシピ単位で1行」を保つ。無制限に行が増え続けることもない）。
+  const registerFusionCodexEntry = useCallback((recipeId: string, resultDefId: string) => {
+    setFusionCodex((prev) => {
+      const now = Date.now();
+      const existing = prev.find((e) => e.recipeId === recipeId);
+      if (existing) {
+        return prev.map((e) => (e.recipeId === recipeId ? { ...e, timesCreated: e.timesCreated + 1, lastCreatedAt: now } : e));
+      }
+      const entry: FusionCodexEntry = { id: recipeId, recipeId, resultDefId, timesCreated: 1, firstCreatedAt: now, lastCreatedAt: now };
+      return [entry, ...prev];
+    });
+  }, []);
+
   // 図鑑が変化するたびにブラウザへ保存する（ラン進行状況は対象外）
   useEffect(() => {
     try {
@@ -168,6 +231,15 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       // 保存容量オーバーなどは無視（図鑑保存は補助機能のため、ゲーム進行自体には影響させない）
     }
   }, [chimeraGallery]);
+
+  // 融合図鑑も同様にブラウザへ保存する。
+  useEffect(() => {
+    try {
+      localStorage.setItem(FUSION_CODEX_STORAGE_KEY, JSON.stringify(fusionCodex));
+    } catch {
+      // 保存容量オーバーなどは無視
+    }
+  }, [fusionCodex]);
 
   const value = useMemo(
     () => ({
@@ -180,6 +252,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       setShowIntro,
       chimeraGallery,
       addNamedChimera,
+      fusionCodex,
+      registerFusionCodexEntry,
       battleResetSignal,
       triggerBattleReset,
       rewardQueue,
@@ -194,6 +268,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       showIntro,
       chimeraGallery,
       addNamedChimera,
+      fusionCodex,
+      registerFusionCodexEntry,
       battleResetSignal,
       triggerBattleReset,
       rewardQueue,
