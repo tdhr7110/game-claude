@@ -11,7 +11,7 @@ import { PartDetailPanel } from './PartDetailPanel';
 import { CapacityBar } from './CapacityBar';
 import { SynergyPanel } from './SynergyPanel';
 import { ChimeraAvatar } from './ChimeraAvatar';
-import { ChimeraGalleryModal } from './ChimeraGalleryModal';
+import { CodexModal } from './CodexModal';
 import { CommandEditModal } from './CommandEditModal';
 
 type PrepTab = 'status' | 'parts' | 'synergy';
@@ -84,8 +84,8 @@ export function PrepScreen() {
           <button className="btn btn--small btn--ghost" onClick={() => setShowIntro(true)} title="遊び方を表示">
             ❓
           </button>
-          <button className="btn btn--small btn--ghost" onClick={() => setShowGallery(true)} title="記録したキメラを見る">
-            🏛️{chimeraGallery.length > 0 ? `(${chimeraGallery.length})` : ''}
+          <button className="btn btn--small btn--ghost" onClick={() => setShowGallery(true)} title="図鑑を見る（部位・敵・キメラ）">
+            📖{chimeraGallery.length > 0 ? `(${chimeraGallery.length})` : ''}
           </button>
           <button className="btn btn--small btn--ghost" onClick={() => setShowMenu(true)} title="その他のメニュー">
             ⋯
@@ -93,7 +93,7 @@ export function PrepScreen() {
         </div>
       </header>
 
-      {showGallery && <ChimeraGalleryModal onClose={() => setShowGallery(false)} />}
+      {showGallery && <CodexModal onClose={() => setShowGallery(false)} />}
       {showCommandEdit && <CommandEditModal onClose={() => setShowCommandEdit(false)} />}
       {showMenu && (
         <div className="modal-overlay" onClick={() => setShowMenu(false)}>
@@ -121,7 +121,7 @@ export function PrepScreen() {
                   setShowGallery(true);
                 }}
               >
-                🏛️ キメラ図鑑を見る{chimeraGallery.length > 0 ? `（${chimeraGallery.length}体）` : ''}
+                📖 図鑑を見る（部位・敵・キメラ）
               </button>
               <p className="muted">
                 戦闘予定: {BATTLE_SEQUENCE.map((_s, i) => (i + 1 === state.battleIndex ? `【${battleSlotLabelForIndex(i + 1)}】` : '・')).join('')}
