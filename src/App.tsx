@@ -8,6 +8,7 @@ import { ResultScreen } from './ui/components/ResultScreen';
 import { DebugPanel } from './ui/components/DebugPanel';
 import { IntroModal } from './ui/components/IntroModal';
 import { RewardOverlay } from './ui/components/RewardOverlay';
+import { ResumePromptModal } from './ui/components/ResumePromptModal';
 import { TurnBattleTestScreen } from './ui/turnTest/TurnBattleTestScreen';
 
 function Root({ onOpenTurnTest }: { onOpenTurnTest: () => void }) {
@@ -24,6 +25,8 @@ function Root({ onOpenTurnTest }: { onOpenTurnTest: () => void }) {
       {/* 報酬演出(部位獲得/コマンド獲得/コマンド進化)は画面フェーズに関わらず
           同じオーバーレイとして最前面に重ねる(報酬フロー中に画面遷移させないため)。 */}
       <RewardOverlay />
+      {/* ラン途中保存の再開プロンプト(優先6)。有効な保存がある間だけ他の全てより上に表示する。 */}
+      <ResumePromptModal />
     </div>
   );
 }

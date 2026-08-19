@@ -22,6 +22,10 @@ import {
 } from '../engine/run';
 import type { BattleEngine } from '../engine/battle';
 import type { RewardCard } from '../data/rewardPresentation';
+import type { CodexState } from '../engine/codex';
+import { markPartsDiscovered, recordEnemyDefeat, recordEnemyEncounter } from '../engine/codex';
+import { loadCodexState, saveCodexState } from '../persistence/codexPersistence';
+import { clearRunSave, loadRunState, saveRunState } from '../persistence/runPersistence';
 
 export interface NamedChimera {
   id: string;
@@ -36,6 +40,8 @@ export interface NamedChimera {
 
 // キメラ図鑑だけをブラウザに保存する（ラン進行状況はセーブ対象外）。
 // 形式が壊れている・将来スキーマが変わった場合は空配列にフォールバックする。
+// 注: このキーはtest9より前から使われている既存キーのため、あえて
+// persistence/storageKeys.ts のtest9 namespaceへは移行しない(既存データを失わないため)。
 const GALLERY_STORAGE_KEY = 'chimera-battle:gallery:v1';
 
 function loadGalleryFromStorage(): NamedChimera[] {
@@ -76,7 +82,9 @@ type Action =
   | { type: 'TOGGLE_VERBOSE' }
   | { type: 'SET_COMMAND_SLOT'; slotIndex: number; familyId: string | null }
   | { type: 'RECORD_COMMAND_DISCOVERIES'; commandIds: string[] }
-  | { type: 'MARK_COMMANDS_SEEN'; commandIds?: string[] };
+  | { type: 'MARK_COMMANDS_SEEN'; commandIds?: string[] }
+  // ラン途中保存(優先6)からの復元専用アクション。保存されたRunStateをそのまま採用する。
+  | { type: 'LOAD_RUN'; state: RunState };
 
 function reducer(state: RunState, action: Action): RunState {
   switch (action.type) {
@@ -114,6 +122,8 @@ function reducer(state: RunState, action: Action): RunState {
       return recordCommandDiscoveries(state, action.commandIds);
     case 'MARK_COMMANDS_SEEN':
       return markCommandsSeen(state, action.commandIds);
+    case 'LOAD_RUN':
+      return action.state;
     default:
       return state;
   }
@@ -139,6 +149,13 @@ interface GameContextValue {
   pushRewardCards: (cards: RewardCard[]) => void;
   advanceRewardQueue: () => void;
   clearRewardQueue: () => void;
+  // ラン途中保存(優先6): 起動時に有効な保存が見つかった場合のみnon-null。
+  // 「続きから」「新しいラン」の選択待ちであることを表す。
+  pendingResume: RunState | null;
+  resumeRun: () => void;
+  discardResumeAndStartNew: () => void;
+  // 収集図鑑(優先7): 部位図鑑・敵図鑑の発見状況。命名キメラ図鑑(chimeraGallery)は別管理。
+  codex: CodexState;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -173,6 +190,74 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [chimeraGallery]);
 
+  // --- ラン途中保存(優先6) ---
+  // 起動時に有効な保存が見つかった場合、ユーザーが「続きから/新しいラン」を選ぶまでは
+  // stateへ反映しない(pendingResumeで保持するだけ)。選択が決まるまでオートセーブも止める
+  // (でないと選択待ち中の初期状態でオートセーブが発火し、保存済みデータを上書きしてしまう)。
+  const [pendingResume, setPendingResume] = React.useState<RunState | null>(() => loadRunState());
+  // 敵遭遇・撃破の二重カウントを防ぐための直前フェーズ記録。
+  // 通常のuseState/useRef初期化はコンポーネント初回マウント時の値を採用するため、
+  // 「続きから」で復元した瞬間のズレはresumeRun内で明示的に補正する。
+  const prevPhaseRef = useRef<RunState['phase']>(state.phase);
+
+  const resumeRun = useCallback(() => {
+    setPendingResume((current) => {
+      if (!current) return current;
+      prevPhaseRef.current = current.phase;
+      dispatch({ type: 'LOAD_RUN', state: current });
+      return null;
+    });
+  }, []);
+
+  const discardResumeAndStartNew = useCallback(() => {
+    clearRunSave();
+    setPendingResume(null);
+  }, []);
+
+  useEffect(() => {
+    if (pendingResume !== null) return; // 選択待ち中は保存済みデータを上書きしない
+    if (state.phase === 'result') {
+      // ラン終了(勝利・敗北)後は途中保存だけを削除する。命名キメラ図鑑は対象外(別ストレージ)。
+      clearRunSave();
+    } else {
+      // 戦闘中の毎フレーム保存はしない。stateはフェーズ単位(戦闘準備・敵選択・戦闘開始直前・
+      // 戦闘勝利後・ドロップ選択・次戦移動)でしか変化しないため、このuseEffectは
+      // 結果的にチェックポイント保存として機能する。
+      saveRunState(state);
+    }
+  }, [state, pendingResume]);
+
+  // --- 収集図鑑(優先7): 部位図鑑・敵図鑑 ---
+  const [codex, setCodex] = React.useState<CodexState>(() => loadCodexState());
+
+  useEffect(() => {
+    saveCodexState(codex);
+  }, [codex]);
+
+  // 部位図鑑: 装着中またはインベントリ中の部位idを「発見済み」として記録する。
+  // 初期支給の弱い腕や、デバッグ付与を含めすべての入手経路をこの1箇所で拾える。
+  useEffect(() => {
+    const ownedDefIds = [...state.equipped, ...state.inventory].map((i) => i.defId);
+    if (ownedDefIds.length === 0) return;
+    setCodex((prev) => markPartsDiscovered(prev, ownedDefIds));
+  }, [state.equipped, state.inventory]);
+
+  // 敵図鑑: フェーズの実遷移(prep/drop/result → battle は遭遇、battle → drop/勝利result は撃破)を
+  // 検知して記録する。pendingResume解決待ち中は判定しない(未確定の初期状態を見てしまうため)。
+  useEffect(() => {
+    const prevPhase = prevPhaseRef.current;
+    prevPhaseRef.current = state.phase;
+    if (pendingResume !== null) return;
+    if (prevPhase === state.phase) return;
+    const enemy = state.currentEnemy;
+    if (!enemy) return;
+    if (state.phase === 'battle') {
+      setCodex((prev) => recordEnemyEncounter(prev, enemy.id));
+    } else if (prevPhase === 'battle' && (state.phase === 'drop' || (state.phase === 'result' && state.resultOutcome === 'victory'))) {
+      setCodex((prev) => recordEnemyDefeat(prev, enemy.id));
+    }
+  }, [state.phase, state.currentEnemy, state.resultOutcome, pendingResume]);
+
   const value = useMemo(
     () => ({
       state,
@@ -190,6 +275,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       pushRewardCards,
       advanceRewardQueue,
       clearRewardQueue,
+      pendingResume,
+      resumeRun,
+      discardResumeAndStartNew,
+      codex,
     }),
     [
       state,
@@ -204,6 +293,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       pushRewardCards,
       advanceRewardQueue,
       clearRewardQueue,
+      pendingResume,
+      resumeRun,
+      discardResumeAndStartNew,
+      codex,
     ]
   );
 
