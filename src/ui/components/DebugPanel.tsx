@@ -29,7 +29,7 @@ const PROTOTYPE_COMMAND_TEST_PART_IDS = [
   'special_colossal_heart',
 ];
 
-export function DebugPanel({ onOpenTurnTest }: { onOpenTurnTest?: () => void }) {
+export function DebugPanel({ onOpenTurnTest, onOpenFreeLayerTest }: { onOpenTurnTest?: () => void; onOpenFreeLayerTest?: () => void }) {
   const { state, dispatch, battleEngineRef, triggerBattleReset } = useGame();
   const [open, setOpen] = useState(false);
   const [selectedPartId, setSelectedPartId] = useState(ALL_PARTS[0]?.id ?? '');
@@ -167,13 +167,20 @@ export function DebugPanel({ onOpenTurnTest }: { onOpenTurnTest?: () => void }) 
         フェーズ: {state.phase} / 戦闘番号: {state.battleIndex} / コアHP: {state.coreHp}
       </div>
 
-      {onOpenTurnTest && (
+      {(onOpenTurnTest || onOpenFreeLayerTest) && (
         <div className="debug-panel__group">
           <label>検証中の別モード</label>
           <div className="debug-panel__row">
-            <button className="btn btn--small" onClick={onOpenTurnTest}>
-              ⚔️ コマンドバトルTESTを開く
-            </button>
+            {onOpenTurnTest && (
+              <button className="btn btn--small" onClick={onOpenTurnTest}>
+                ⚔️ コマンドバトルTESTを開く
+              </button>
+            )}
+            {onOpenFreeLayerTest && (
+              <button className="btn btn--small" onClick={onOpenFreeLayerTest}>
+                🧪 自由合体レイヤーTESTを開く
+              </button>
+            )}
           </div>
         </div>
       )}

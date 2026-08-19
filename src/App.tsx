@@ -10,8 +10,9 @@ import { IntroModal } from './ui/components/IntroModal';
 import { RewardOverlay } from './ui/components/RewardOverlay';
 import { ResumePromptModal } from './ui/components/ResumePromptModal';
 import { TurnBattleTestScreen } from './ui/turnTest/TurnBattleTestScreen';
+import { FreeLayerTestScreen } from './ui/freeLayer/FreeLayerTestScreen';
 
-function Root({ onOpenTurnTest }: { onOpenTurnTest: () => void }) {
+function Root({ onOpenTurnTest, onOpenFreeLayerTest }: { onOpenTurnTest: () => void; onOpenFreeLayerTest: () => void }) {
   const { state } = useGame();
   return (
     // TEST6由来: 戦闘画面は1画面に収め、ページ全体のスクロールが発生しないようにする
@@ -22,7 +23,7 @@ function Root({ onOpenTurnTest }: { onOpenTurnTest: () => void }) {
       {state.phase === 'battle' && <BattleScreen />}
       {state.phase === 'drop' && <DropScreen />}
       {state.phase === 'result' && <ResultScreen />}
-      <DebugPanel onOpenTurnTest={onOpenTurnTest} />
+      <DebugPanel onOpenTurnTest={onOpenTurnTest} onOpenFreeLayerTest={onOpenFreeLayerTest} />
       <IntroModal />
       {/* 報酬演出(部位獲得/コマンド獲得/コマンド進化)は画面フェーズに関わらず
           同じオーバーレイとして最前面に重ねる(報酬フロー中に画面遷移させないため)。 */}
@@ -37,10 +38,13 @@ export default function App() {
   // コマンドバトルTESTは既存のラン進行(GameProvider/RunState)を一切変更しない
   // 独立したオーバーレイ画面として重ねて表示する（既存のオートバトルは裏で維持されたまま）。
   const [showTurnTest, setShowTurnTest] = useState(false);
+  // TEST11: 自由合体レイヤー表示TESTも同様に、既存のラン進行を一切変更しない独立オーバーレイとして重ねる。
+  const [showFreeLayerTest, setShowFreeLayerTest] = useState(false);
   return (
     <GameProvider>
-      <Root onOpenTurnTest={() => setShowTurnTest(true)} />
+      <Root onOpenTurnTest={() => setShowTurnTest(true)} onOpenFreeLayerTest={() => setShowFreeLayerTest(true)} />
       {showTurnTest && <TurnBattleTestScreen onExit={() => setShowTurnTest(false)} />}
+      {showFreeLayerTest && <FreeLayerTestScreen onExit={() => setShowFreeLayerTest(false)} />}
     </GameProvider>
   );
 }
