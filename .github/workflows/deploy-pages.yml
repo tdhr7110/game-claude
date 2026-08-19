@@ -149,6 +149,26 @@ jobs:
           mkdir -p ../dist/test6
           cp -r dist/. ../dist/test6/
 
+      # フェーズ10（TEST10: TEST7〜9統合版。敵候補選択・敵固有ギミック・セーブ再開・図鑑・
+      # 戦闘演出/SEを統合）を /test10/ サブパスに同梱する。TEST1〜6・正式版とは完全に独立した
+      # ブランチで、取得・ビルドに失敗しても他のデプロイは継続する。
+      - name: Checkout test10 branch (統合検証用)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: test10/chimera-integrated-next
+          path: test10-branch
+
+      - name: Build test10 branch into /test10/ subpath
+        if: hashFiles('test10-branch/package.json') != ''
+        continue-on-error: true
+        run: |
+          cd test10-branch
+          npm ci
+          npm run build -- --base=/game-claude/test10/
+          mkdir -p ../dist/test10
+          cp -r dist/. ../dist/test10/
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
