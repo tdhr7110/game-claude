@@ -6,6 +6,9 @@ import { CORE_HP_BASE, BASE_DEFENSE, getCapacityInfo, TOTAL_BATTLES } from '../.
 import { ChimeraAvatar } from './ChimeraAvatar';
 import { CapacityBar } from './CapacityBar';
 import { formatBigNumber } from '../format';
+import { baseEnemyIdForCollection } from '../../data/enemyCatalog';
+import { getEnemyArtUrl } from '../collectionArt';
+import { CollectionArtImage } from './CollectionArtImage';
 import '../commandSystem.css';
 
 const SPEED_OPTIONS: SpeedSetting[] = [0, 1, 2, 4];
@@ -156,7 +159,7 @@ function PartActivityList({ label, parts }: { label: string; parts: CombatantSna
 }
 
 export function BattleScreen() {
-  const { state, dispatch, battleEngineRef, battleResetSignal } = useGame();
+  const { state, dispatch, battleEngineRef, battleResetSignal, collection } = useGame();
   const [snapshot, setSnapshot] = useState<BattleSnapshot | null>(null);
   const [glowSlot, setGlowSlot] = useState<number | null>(null);
   const [showDetails, setShowDetails] = useState(false);
@@ -231,6 +234,10 @@ export function BattleScreen() {
         </div>
       </header>
 
+      {enemyDef && collection.unseenEnemyIds.includes(baseEnemyIdForCollection(enemyDef.id)) && (
+        <div className="enemy-discovery-banner">🆕📖 新種の敵を発見！図鑑に登録されました — {enemyDef.name}</div>
+      )}
+
       <div className="battle-stage">
         <div className="battle-stage__enemy-row">
           <div className="battle-stage__name">
@@ -246,7 +253,15 @@ export function BattleScreen() {
                 className="cmd-enemy-figure"
                 style={{ background: `radial-gradient(circle, ${enemyDef?.color ?? '#7c3aed'}33, transparent 70%)` }}
               >
-                <span style={{ opacity: snapshot.enemy.isDead ? 0.35 : 1 }}>{enemyDef?.icon ?? '👹'}</span>
+                <span style={{ opacity: snapshot.enemy.isDead ? 0.35 : 1 }}>
+                  <CollectionArtImage
+                    url={enemyDef ? getEnemyArtUrl(enemyDef.id) : null}
+                    fallbackIcon={enemyDef?.icon ?? '👹'}
+                    fallbackColor={enemyDef?.color}
+                    alt={enemyDef?.name ?? '敵'}
+                    className="cmd-enemy-figure__art"
+                  />
+                </span>
               </div>
               <FigureStatusBadges c={snapshot.enemy} />
             </div>

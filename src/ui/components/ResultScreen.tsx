@@ -71,7 +71,10 @@ export function ResultScreen() {
         </div>
       )}
       {savedName && (
-        <div className="naming-box naming-box--done">✅「{savedName}」として図鑑に記録しました（戦闘準備画面の🏛️図鑑から確認できます）</div>
+        <div className="naming-box naming-box--done chimera-registered-banner">
+          <div className="chimera-registered-banner__glow" />
+          🆕📖「{savedName}」を図鑑に登録しました！（戦闘準備画面の📖図鑑から確認できます）
+        </div>
       )}
 
       <h2>最終ビルド（装着中の部位: {state.equipped.length}）</h2>

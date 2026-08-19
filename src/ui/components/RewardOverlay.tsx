@@ -85,6 +85,7 @@ export function RewardOverlay() {
           {card.rewardType === 'command_unlocked' && 'コマンド獲得！'}
           {card.rewardType === 'command_evolved' && 'コマンド進化！'}
         </div>
+        {card.isNewCollectionEntry && <div className="reward-card__collection-badge">🆕📖 図鑑に登録されました</div>}
 
         {cfg.haloRing && !reduced && <div className="reward-card__halo" />}
         {!reduced &&

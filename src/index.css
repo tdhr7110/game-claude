@@ -398,6 +398,13 @@ p {
   font-size: 1.7em;
   line-height: 1;
 }
+.part-card__art {
+  width: 1.7em;
+  height: 1.7em;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
 .part-card__name {
   font-weight: 700;
   font-size: 0.9em;
@@ -482,6 +489,11 @@ p {
   display: flex;
   gap: 12px;
   align-items: center;
+}
+.detail-panel__art {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .detail-panel__icon {
   font-size: 2.2em;
@@ -730,6 +742,7 @@ p {
   z-index: 20;
 }
 .bottom-nav__item {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -754,6 +767,29 @@ p {
 .bottom-nav__icon {
   font-size: 1.25em;
   line-height: 1;
+}
+.bottom-nav__item--attention {
+  color: var(--color-primary, #a855f7);
+}
+.bottom-nav__badge {
+  position: absolute;
+  top: 2px;
+  right: calc(50% - 20px);
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.62em;
+  font-weight: 800;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: var(--radius-pill);
+  box-shadow: 0 0 0 2px rgba(28, 19, 48, 0.92);
+}
+.header-right .btn {
+  position: relative;
+}
+.header-right .bottom-nav__badge {
+  top: -6px;
+  right: -6px;
 }
 .bottom-nav__label {
   font-size: 0.68em;
@@ -959,6 +995,176 @@ p {
 }
 .gallery-build .part-grid {
   margin-bottom: 12px;
+}
+
+/* ============================================================
+   統合図鑑モーダル（部位・敵・キメラ）
+   ============================================================ */
+.collection-modal {
+  max-width: 640px;
+}
+.collection-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.collection-tabs__item {
+  flex: 1;
+  min-width: 100px;
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-dim);
+  border-radius: var(--radius-md);
+  padding: 8px 6px;
+  font-size: 0.82em;
+  font-weight: 700;
+  cursor: pointer;
+}
+.collection-tabs__item--active {
+  color: var(--color-text);
+  border-color: var(--color-primary, #a855f7);
+  background: rgba(168, 85, 247, 0.18);
+}
+.collection-rates {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.collection-rate-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8em;
+}
+.collection-rate-row__label {
+  width: 64px;
+  flex-shrink: 0;
+  color: var(--color-text-dim);
+}
+.collection-rate-row__bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.collection-rate-row__fill {
+  height: 100%;
+  background: linear-gradient(90deg, #a855f7, #38dbf0);
+  border-radius: var(--radius-pill);
+  transition: width 0.3s ease-out;
+}
+.collection-rate-row__value {
+  width: 92px;
+  flex-shrink: 0;
+  text-align: right;
+  color: var(--color-text-dim);
+}
+.collection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 8px;
+  max-height: 40vh;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+.collection-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 8px 4px;
+  cursor: pointer;
+  color: var(--color-text);
+}
+.collection-tile:disabled {
+  cursor: default;
+}
+.collection-tile--selected {
+  border-color: var(--color-primary, #a855f7);
+  background: rgba(168, 85, 247, 0.2);
+}
+.collection-tile--undiscovered {
+  opacity: 0.55;
+}
+.collection-tile--undiscovered .collection-tile__art {
+  filter: grayscale(1) brightness(0.6);
+}
+.collection-tile__art {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  font-size: 2em;
+  line-height: 44px;
+  display: block;
+}
+.collection-tile__name {
+  font-size: 0.68em;
+  text-align: center;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.collection-discovery-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.78em;
+  color: var(--color-text-dim);
+  margin-bottom: 8px;
+}
+.collection-related-commands {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border-soft);
+}
+.collection-related-commands__row {
+  font-size: 0.82em;
+  padding: 3px 0;
+}
+
+.enemy-discovery-banner {
+  background: rgba(168, 85, 247, 0.2);
+  border: 1px solid rgba(168, 85, 247, 0.6);
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  font-size: 0.82em;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 8px;
+  animation: pop-in 0.2s ease-out;
+}
+
+/* ============================================================
+   キメラ図鑑登録演出（ラン終了時の命名完了バナー）
+   ============================================================ */
+.chimera-registered-banner {
+  position: relative;
+  overflow: hidden;
+  animation: chimera-registered-pop 0.45s ease-out;
+}
+@keyframes chimera-registered-pop {
+  0% { transform: scale(0.85); opacity: 0; }
+  60% { transform: scale(1.03); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.chimera-registered-banner__glow {
+  position: absolute;
+  inset: -40%;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.45), transparent 70%);
+  animation: chimera-registered-glow 1.2s ease-out;
+  pointer-events: none;
+}
+@keyframes chimera-registered-glow {
+  0% { opacity: 0.9; transform: scale(0.6); }
+  100% { opacity: 0; transform: scale(1.4); }
 }
 
 /* ============================================================

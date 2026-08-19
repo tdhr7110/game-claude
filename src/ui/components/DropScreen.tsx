@@ -11,7 +11,7 @@ import { buildCommandRewardCard, buildPartAcquiredCard } from '../rewardCardBuil
 import { getPartDef } from '../../data/parts';
 
 export function DropScreen() {
-  const { state, dispatch, pushRewardCards } = useGame();
+  const { state, dispatch, pushRewardCards, collection } = useGame();
   const [selectedDefId, setSelectedDefId] = useState<string | null>(null);
 
   const eqDefs = useMemo(() => equippedDefs(state), [state]);
@@ -30,7 +30,8 @@ export function DropScreen() {
       (c) => !state.knownCommandIds.includes(c.to.commandId)
     );
 
-    const cards = [buildPartAcquiredCard(getPartDef(defId)), ...changes.map((c) => buildCommandRewardCard(c, after))];
+    const isNewCollectionEntry = !(defId in collection.parts);
+    const cards = [buildPartAcquiredCard(getPartDef(defId), isNewCollectionEntry), ...changes.map((c) => buildCommandRewardCard(c, after))];
     dispatch({ type: 'ACCEPT_DROP', defId, wantEquip });
     if (changes.length > 0) {
       dispatch({ type: 'RECORD_COMMAND_DISCOVERIES', commandIds: changes.map((c) => c.to.commandId) });

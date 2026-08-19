@@ -3,6 +3,8 @@ import type { PartDef } from '../../data/types';
 import { RARITY_COLORS, SPECIES_ICONS, rarityLabel, speciesLabel, tagLabel, typeLabel } from '../format';
 import { PART_TYPE_SYNERGIES, SPECIES_SYNERGIES } from '../../data/synergies';
 import type { SynergyDeltaRow } from '../synergyPreview';
+import { getPartArtUrl } from '../collectionArt';
+import { CollectionArtImage } from './CollectionArtImage';
 
 interface PartDetailPanelProps {
   def: PartDef;
@@ -12,15 +14,15 @@ interface PartDetailPanelProps {
   actions?: ReactNode; // 「すぐ装着する」等のアクションボタン群
 }
 
-// 本番版UI(TEST4)のデザインを移植したもの。本番版のdef.imageはTEST5の部位データに
-// 存在しないため常にアイコン表示とする。
+// 本番版UI(TEST4)のデザインを移植したもの。TEST15より、図鑑アイコン画像が
+// 登録済みならそちらを表示し、未登録の部位は従来通り絵文字アイコンにフォールバックする。
 export function PartDetailPanel({ def, cost, compareWith, synergyDelta, actions }: PartDetailPanelProps) {
   const effectiveCost = cost ?? def.cost;
   return (
     <div className={`detail-panel part-card--rarity-${def.rarity}`} style={{ animation: 'none' }}>
       <div className="detail-panel__header">
         <span className="detail-panel__icon" style={{ color: def.color }}>
-          {def.icon}
+          <CollectionArtImage url={getPartArtUrl(def.id)} fallbackIcon={def.icon} fallbackColor={def.color} alt={def.name} className="detail-panel__art" />
         </span>
         <div>
           <div className="detail-panel__name">{def.name}</div>

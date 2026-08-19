@@ -73,6 +73,9 @@ export interface RewardCard {
   // part_acquired専用
   connectionCost?: number;
   mainAbilityText?: string;
+  // 部位・敵・キメラ図鑑への初回登録通知(TEST15)。図鑑上でまだ一度も発見していなかった
+  // 場合にtrueになる(部位の付け外しによる再入手では発火しない)。
+  isNewCollectionEntry?: boolean;
 
   // command_unlocked / command_evolved専用
   familyId?: string;

@@ -47,6 +47,13 @@ export interface RunState {
   // まだ報酬演出またはコマンド編集画面で確認していないcommandIdの一覧。
   // 下部ナビゲーション「コマンド」のNEWバッジ表示に使う。
   unseenCommandIds: string[];
+  // 図鑑(collectionStore)の「発見したラン数」を数えるための、このラン固有のID。
+  // ラン内で同じ部位・敵を何度発見してもラン数としては1回しか数えない。
+  runId: string;
+}
+
+function generateRunId(): string {
+  return `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
 function nextInstanceId(state: RunState): [string, RunState] {
@@ -72,6 +79,7 @@ export function createInitialRunState(): RunState {
     commandLoadout: [...DEFAULT_COMMAND_LOADOUT],
     knownCommandIds: [],
     unseenCommandIds: [],
+    runId: generateRunId(),
   };
   for (let i = 0; i < 2; i++) {
     const [id, next] = nextInstanceId(state);

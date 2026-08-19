@@ -56,3 +56,13 @@ export function formatBigNumber(v: number): string {
   if (abs >= 1_000) return `${(v / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}K`;
   return `${Math.round(v)}`;
 }
+
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : `${n}`;
+}
+
+// 図鑑の「初入手日時」表示用。ロケール依存にならないよう手組みでフォーマットする。
+export function formatDateTime(epochMs: number): string {
+  const d = new Date(epochMs);
+  return `${d.getFullYear()}/${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}

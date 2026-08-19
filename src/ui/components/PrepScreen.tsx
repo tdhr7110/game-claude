@@ -11,7 +11,7 @@ import { PartDetailPanel } from './PartDetailPanel';
 import { CapacityBar } from './CapacityBar';
 import { SynergyPanel } from './SynergyPanel';
 import { ChimeraAvatar } from './ChimeraAvatar';
-import { ChimeraGalleryModal } from './ChimeraGalleryModal';
+import { CollectionModal } from './CollectionModal';
 import { CommandEditModal } from './CommandEditModal';
 
 type PrepTab = 'status' | 'parts' | 'synergy';
@@ -29,13 +29,15 @@ interface SelectedPart {
 }
 
 export function PrepScreen() {
-  const { state, dispatch, equipError, setEquipError, setShowIntro, chimeraGallery } = useGame();
+  const { state, dispatch, equipError, setEquipError, setShowIntro, collection } = useGame();
   const [tab, setTab] = useState<PrepTab>('parts');
   const [selected, setSelected] = useState<SelectedPart | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [showCommandEdit, setShowCommandEdit] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const unseenCommandCount = state.unseenCommandIds.length;
+  const unseenCollectionCount = collection.unseenPartIds.length + collection.unseenEnemyIds.length;
+  const collectionTotalCount = collection.chimeras.length + Object.keys(collection.parts).length + Object.keys(collection.enemies).length;
 
   function openCommandEdit() {
     setShowCommandEdit(true);
@@ -84,8 +86,9 @@ export function PrepScreen() {
           <button className="btn btn--small btn--ghost" onClick={() => setShowIntro(true)} title="遊び方を表示">
             ❓
           </button>
-          <button className="btn btn--small btn--ghost" onClick={() => setShowGallery(true)} title="記録したキメラを見る">
-            🏛️{chimeraGallery.length > 0 ? `(${chimeraGallery.length})` : ''}
+          <button className="btn btn--small btn--ghost" onClick={() => setShowGallery(true)} title="図鑑を見る">
+            📖{collectionTotalCount > 0 ? `(${collectionTotalCount})` : ''}
+            {unseenCollectionCount > 0 && <span className="bottom-nav__badge">{unseenCollectionCount > 9 ? '9+' : unseenCollectionCount}</span>}
           </button>
           <button className="btn btn--small btn--ghost" onClick={() => setShowMenu(true)} title="その他のメニュー">
             ⋯
@@ -93,7 +96,7 @@ export function PrepScreen() {
         </div>
       </header>
 
-      {showGallery && <ChimeraGalleryModal onClose={() => setShowGallery(false)} />}
+      {showGallery && <CollectionModal onClose={() => setShowGallery(false)} />}
       {showCommandEdit && <CommandEditModal onClose={() => setShowCommandEdit(false)} />}
       {showMenu && (
         <div className="modal-overlay" onClick={() => setShowMenu(false)}>
@@ -121,7 +124,7 @@ export function PrepScreen() {
                   setShowGallery(true);
                 }}
               >
-                🏛️ キメラ図鑑を見る{chimeraGallery.length > 0 ? `（${chimeraGallery.length}体）` : ''}
+                📖 図鑑を見る{collectionTotalCount > 0 ? `（${collectionTotalCount}件）` : ''}
               </button>
               <p className="muted">
                 戦闘予定: {BATTLE_SEQUENCE.map((_s, i) => (i + 1 === state.battleIndex ? `【${battleSlotLabelForIndex(i + 1)}】` : '・')).join('')}

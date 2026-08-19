@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useGame } from '../GameContext';
 import { ALL_PARTS } from '../../data/parts';
+import { ENEMY_CATALOG } from '../../data/enemyCatalog';
+import { COLLECTION_ART_ENTRIES } from '../../data/collectionArtManifest.generated';
 import type { SpeedSetting } from '../../engine/battle';
 import { equippedDefs } from '../../engine/run';
 import { ALL_COMMANDS, COMMAND_BALANCE, getCommandDef, resolveAllFamilies } from '../../data/commandDefs';
@@ -35,6 +37,7 @@ export function DebugPanel({ onOpenTurnTest }: { onOpenTurnTest?: () => void }) 
   const [selectedPartId, setSelectedPartId] = useState(ALL_PARTS[0]?.id ?? '');
   const [showCommandTest, setShowCommandTest] = useState(false);
   const [showRewardTest, setShowRewardTest] = useState(false);
+  const [showArtDev, setShowArtDev] = useState(false);
 
   useEffect(() => {
     document.body.classList.toggle('debug-open', open);
@@ -190,6 +193,47 @@ export function DebugPanel({ onOpenTurnTest }: { onOpenTurnTest?: () => void }) 
       </div>
 
       {showRewardTest && <RewardFlowTestSection />}
+
+      <div className="debug-panel__group">
+        <button className="btn btn--small" onClick={() => setShowArtDev((v) => !v)}>
+          🖼️ 図鑑画像パイプラインTEST{showArtDev ? '（閉じる）' : ''}
+        </button>
+      </div>
+
+      {showArtDev && <CollectionArtDevSection />}
+    </div>
+  );
+}
+
+// 図鑑アイコン画像の「未登録画像を一覧化する開発者画面」。
+// npm run art:scan が生成したマニフェスト(COLLECTION_ART_ENTRIES)と、
+// 実際のゲームデータ(ALL_PARTS / ENEMY_CATALOG)を突き合わせるだけで、
+// ブラウザ上で「まだ絵が無いID」を確認できる。ファイル未使用検出・規格違反検出・
+// 重複割り当て検出はファイルシステムへのアクセスが必要なため、そちらは
+// `npm run art:scan` / `npm run art:check` (scripts/collectionArt/scanArt.ts) が担う。
+function CollectionArtDevSection() {
+  const registeredPartIds = new Set(COLLECTION_ART_ENTRIES.filter((e) => e.domain === 'part').map((e) => e.id));
+  const registeredEnemyIds = new Set(COLLECTION_ART_ENTRIES.filter((e) => e.domain === 'enemy').map((e) => e.id));
+  const missingParts = ALL_PARTS.filter((p) => !registeredPartIds.has(p.id));
+  const missingEnemies = ENEMY_CATALOG.filter((e) => !registeredEnemyIds.has(e.id));
+
+  return (
+    <div className="debug-panel__group cmd-debug-section">
+      <div className="muted">
+        登録済み画像: 部位 {registeredPartIds.size}/{ALL_PARTS.length} ・ 敵 {registeredEnemyIds.size}/{ENEMY_CATALOG.length}
+      </div>
+      <label>未登録画像(部位) — {missingParts.length}件</label>
+      <div className="muted" style={{ maxHeight: 100, overflowY: 'auto' }}>
+        {missingParts.length === 0 ? 'なし' : missingParts.map((p) => `${p.icon}${p.name}(${p.id})`).join('、 ')}
+      </div>
+      <label>未登録画像(敵) — {missingEnemies.length}件</label>
+      <div className="muted" style={{ maxHeight: 100, overflowY: 'auto' }}>
+        {missingEnemies.length === 0 ? 'なし' : missingEnemies.map((e) => `${e.icon}${e.name}(${e.id})`).join('、 ')}
+      </div>
+      <p className="muted">
+        未使用ファイル・規格違反(サイズ/透過/余白/向き)・重複割り当ての検出は <code>npm run art:scan</code>(または{' '}
+        <code>npm run art:check</code>)を実行してください。
+      </p>
     </div>
   );
 }

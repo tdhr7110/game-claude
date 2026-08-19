@@ -17,7 +17,7 @@ function nextRewardCardId(prefix: string): string {
   return `${prefix}_${rewardCardSeq}_${Date.now().toString(36)}`;
 }
 
-export function buildPartAcquiredCard(def: PartDef): RewardCard {
+export function buildPartAcquiredCard(def: PartDef, isNewCollectionEntry = false): RewardCard {
   return {
     id: nextRewardCardId('part'),
     rewardType: 'part_acquired',
@@ -31,6 +31,7 @@ export function buildPartAcquiredCard(def: PartDef): RewardCard {
     sourcePartNames: [],
     connectionCost: def.cost,
     mainAbilityText: def.passiveDescription ?? def.description,
+    isNewCollectionEntry,
   };
 }
 

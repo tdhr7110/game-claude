@@ -1,5 +1,7 @@
 import type { PartDef } from '../../data/types';
 import { RARITY_COLORS, SPECIES_ICONS, TAG_ICONS, TYPE_ICONS, rarityLabel, typeLabel } from '../format';
+import { getPartArtUrl } from '../collectionArt';
+import { CollectionArtImage } from './CollectionArtImage';
 
 interface PartCardProps {
   def: PartDef;
@@ -11,9 +13,11 @@ interface PartCardProps {
   onClick?: () => void;
 }
 
-// 本番版UI(TEST4)のデザインを移植したもの。本番版は将来のイラスト差し替え用に
-// def.image を持つが、TEST5の部位データにはこのフィールドが無いため常にアイコン表示とする。
+// 本番版UI(TEST4)のデザインを移植したもの。TEST15より、図鑑アイコン画像
+// (public/assets/collection-art/parts/<id>.png)が登録済みならそちらを表示し、
+// 未登録の部位は従来通り絵文字アイコンにフォールバックする。
 export function PartCard({ def, cost, selected, disabled, compact, badge, onClick }: PartCardProps) {
+  const artUrl = getPartArtUrl(def.id);
   const effectiveCost = cost ?? def.cost;
   return (
     <button
@@ -27,7 +31,7 @@ export function PartCard({ def, cost, selected, disabled, compact, badge, onClic
         {rarityLabel(def.rarity)}
       </span>
       <div className="part-card__icon" style={{ color: def.color }}>
-        {def.icon}
+        <CollectionArtImage url={artUrl} fallbackIcon={def.icon} fallbackColor={def.color} alt={def.name} className="part-card__art" />
       </div>
       <div className="part-card__name">{def.name}</div>
       <div className="part-card__meta">
