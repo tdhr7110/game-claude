@@ -1,0 +1,265 @@
+/* ============================================================
+   収集図鑑(優先7: 部位図鑑・敵図鑑・キメラ図鑑)
+   ラン途中保存の再開プロンプト(優先6)もここに含める。
+   スマホ縦画面を優先し、既存の modal-card / part-card / chip 等の
+   デザイントークンをそのまま流用する。
+   ============================================================ */
+
+.codex-modal {
+  max-width: 560px;
+  max-height: 88dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.codex-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+.codex-tabs__item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  border-radius: var(--radius-md);
+  padding: 8px 4px;
+  font-size: 0.85em;
+  font-weight: 700;
+  cursor: pointer;
+}
+.codex-tabs__item--active {
+  color: var(--color-text);
+  background: rgba(168, 85, 247, 0.22);
+  border-color: var(--color-primary);
+}
+
+.codex-modal__body {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.codex-panel__summary {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.codex-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.codex-filters__search {
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  padding: 8px 10px;
+  font-size: 0.9em;
+  width: 100%;
+}
+.codex-filters__row {
+  display: flex;
+  gap: 6px;
+}
+.codex-filters__row select {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  padding: 7px 6px;
+  font-size: 0.82em;
+}
+
+.codex-grid {
+  margin-bottom: 12px;
+}
+
+/* 未発見の部位カード（シルエット表示） */
+.part-card--locked {
+  cursor: default;
+  opacity: 0.75;
+  border-color: var(--color-border);
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.part-card__icon--locked {
+  font-size: 1.7em;
+  color: var(--color-text-dim);
+}
+.part-card--locked .part-card__name {
+  color: var(--color-text-dim);
+}
+
+.codex-detail {
+  margin-bottom: 14px;
+}
+.codex-detail__commands {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.codex-command-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.85em;
+}
+.codex-command-row__name {
+  font-weight: 700;
+}
+.codex-command-row__evo {
+  font-size: 0.85em;
+}
+
+/* ============================================================
+   敵図鑑カード
+   ============================================================ */
+.enemy-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.enemy-card {
+  width: 108px;
+  min-height: 96px;
+  background: linear-gradient(165deg, var(--color-panel-2), var(--color-panel));
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 7px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--color-text);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.enemy-card:active {
+  transform: scale(0.97);
+}
+.enemy-card--tier-normal {
+  border-color: var(--rarity-common);
+}
+.enemy-card--tier-elite {
+  border-color: var(--rarity-uncommon);
+  box-shadow: 0 0 10px 1px var(--rarity-uncommon-glow);
+}
+.enemy-card--tier-miniboss {
+  border-color: var(--color-secondary);
+  box-shadow: 0 0 10px 1px rgba(244, 114, 182, 0.35);
+}
+.enemy-card--tier-boss {
+  border-color: var(--rarity-rare);
+  box-shadow: 0 0 14px 2px var(--rarity-rare-glow);
+}
+.enemy-card--selected {
+  outline: 2px solid var(--color-cyan);
+  outline-offset: 2px;
+}
+.enemy-card--locked {
+  opacity: 0.75;
+  cursor: default;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.enemy-card__icon {
+  font-size: 1.7em;
+  line-height: 1;
+}
+.enemy-card__icon--locked {
+  color: var(--color-text-dim);
+}
+.enemy-card__name {
+  font-weight: 700;
+  font-size: 0.9em;
+}
+.enemy-card--locked .enemy-card__name {
+  color: var(--color-text-dim);
+}
+.enemy-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  font-size: 0.7em;
+}
+.enemy-card__unknown-chip {
+  background: rgba(248, 97, 122, 0.18);
+  color: var(--color-danger);
+}
+
+.enemy-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.enemy-detail__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.enemy-detail__icon {
+  font-size: 2em;
+  line-height: 1;
+}
+.enemy-detail__name {
+  font-weight: 700;
+  font-size: 1.05em;
+}
+.enemy-detail__counts {
+  font-size: 0.85em;
+}
+.enemy-detail__moves,
+.enemy-detail__parts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ============================================================
+   ラン途中保存の再開プロンプト(優先6)
+   ============================================================ */
+.resume-prompt-overlay {
+  z-index: 300;
+}
+.resume-prompt-card {
+  max-width: 420px;
+}
+.resume-prompt__summary {
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.92em;
+}
+.resume-prompt__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ============================================================
+   スマホ縦画面優先: 幅が十分にある場合のみグリッド列数を抑える
+   ============================================================ */
+@media (min-width: 640px) {
+  .codex-modal {
+    border-radius: var(--radius-lg);
+  }
+}

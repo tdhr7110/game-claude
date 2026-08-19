@@ -22,6 +22,12 @@ function dummyEnemy(overrides: Partial<EnemyDef> = {}): EnemyDef {
     description: '',
     icon: '🎯',
     color: '#888',
+    // TEST7統合: このダミーは特殊能力コンボの戦闘性能だけを検証する的で、ドロップ・ギミックは
+    // 検証対象ではないため、空(=ドロップ不可・ギミックなし)が正しい値。
+    bodyPartIds: [],
+    rareDropPartIds: [],
+    gimmickSummary: '',
+    gimmicks: [],
     ...overrides,
   };
 }

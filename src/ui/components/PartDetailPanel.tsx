@@ -97,8 +97,8 @@ export function PartDetailPanel({ def, cost, compareWith, synergyDelta, actions 
       {compareWith && compareWith.length > 0 && (
         <div className="detail-panel__compare">
           <div className="muted">現在装着中の同種部位と比較:</div>
-          {compareWith.map((c) => (
-            <div key={c.id} className="detail-panel__compare-row">
+          {compareWith.map((c, i) => (
+            <div key={`${c.id}-${i}`} className="detail-panel__compare-row">
               <span>{c.icon} {c.name}</span>
               <span>
                 ⚔️{c.attack || '-'} ❤️{c.hpBonus >= 0 ? '+' : ''}{c.hpBonus} 🔌{c.cost}

@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useGame } from '../GameContext';
 import { ALL_PARTS } from '../../data/parts';
 import type { SpeedSetting } from '../../engine/battle';
-import { equippedDefs } from '../../engine/run';
+import { equippedDefs, fusionEligiblePairs } from '../../engine/run';
 import { ALL_COMMANDS, COMMAND_BALANCE, getCommandDef, resolveAllFamilies } from '../../data/commandDefs';
+import { FUSION_RECIPES } from '../../data/fusion';
 import type { Rarity } from '../../data/types';
 import { buildCommandRewardCard, buildPartAcquiredCard } from '../rewardCardBuilders';
 import type { CommandChangeEvent } from '../../engine/commandRewards';
@@ -29,12 +30,13 @@ const PROTOTYPE_COMMAND_TEST_PART_IDS = [
   'special_colossal_heart',
 ];
 
-export function DebugPanel({ onOpenTurnTest }: { onOpenTurnTest?: () => void }) {
+export function DebugPanel({ onOpenTurnTest, onOpenFreeLayerTest }: { onOpenTurnTest?: () => void; onOpenFreeLayerTest?: () => void }) {
   const { state, dispatch, battleEngineRef, triggerBattleReset } = useGame();
   const [open, setOpen] = useState(false);
   const [selectedPartId, setSelectedPartId] = useState(ALL_PARTS[0]?.id ?? '');
   const [showCommandTest, setShowCommandTest] = useState(false);
   const [showRewardTest, setShowRewardTest] = useState(false);
+  const [selectedFusionRecipeId, setSelectedFusionRecipeId] = useState(FUSION_RECIPES[0]?.id ?? '');
 
   useEffect(() => {
     document.body.classList.toggle('debug-open', open);
@@ -57,7 +59,10 @@ export function DebugPanel({ onOpenTurnTest }: { onOpenTurnTest?: () => void }) 
 
   function advance() {
     if (state.phase === 'prep') {
-      dispatch({ type: 'ENTER_BATTLE' });
+      dispatch({ type: 'ENTER_ENEMY_SELECT' });
+    } else if (state.phase === 'enemySelect') {
+      const first = state.enemyCandidates[0];
+      if (first) dispatch({ type: 'CHOOSE_ENEMY', enemyId: first.id });
     } else if (state.phase === 'battle') {
       const engine = battleEngineRef.current;
       if (!engine) return;
@@ -66,6 +71,8 @@ export function DebugPanel({ onOpenTurnTest }: { onOpenTurnTest?: () => void }) 
       if (result !== 'ongoing') {
         dispatch({ type: 'FINISH_BATTLE', result, finalHp: engine.getFinalPlayerHp() });
       }
+    } else if (state.phase === 'fusion') {
+      dispatch({ type: 'RESOLVE_FUSION_STEP' });
     } else if (state.phase === 'drop') {
       dispatch({ type: 'SKIP_DROP' });
       dispatch({ type: 'NEXT_BATTLE' });
@@ -121,6 +128,36 @@ export function DebugPanel({ onOpenTurnTest }: { onOpenTurnTest?: () => void }) 
       </div>
 
       <div className="debug-panel__group">
+        <label>融合(TEST16) 動作確認用</label>
+        <div className="debug-panel__row">
+          <select value={selectedFusionRecipeId} onChange={(e) => setSelectedFusionRecipeId(e.target.value)}>
+            {FUSION_RECIPES.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn btn--small"
+            onClick={() => {
+              const recipe = FUSION_RECIPES.find((r) => r.id === selectedFusionRecipeId);
+              if (!recipe) return;
+              dispatch({ type: 'DEBUG_GRANT_PART', defId: recipe.sourceDefIds[0] });
+              dispatch({ type: 'DEBUG_GRANT_PART', defId: recipe.sourceDefIds[1] });
+            }}
+          >
+            材料2部位を付与
+          </button>
+        </div>
+        <div className="debug-panel__row">
+          <button className="btn btn--small" onClick={() => dispatch({ type: 'DEBUG_FORCE_FUSION_PHASE' })}>
+            融合オファー画面を開く
+          </button>
+          <span className="muted">現在の融合可能組み合わせ: {fusionEligiblePairs(state).length}件</span>
+        </div>
+      </div>
+
+      <div className="debug-panel__group">
         <label>HP / 戦闘</label>
         <div className="debug-panel__row">
           <button className="btn btn--small" onClick={fullHeal}>
@@ -164,13 +201,20 @@ export function DebugPanel({ onOpenTurnTest }: { onOpenTurnTest?: () => void }) 
         フェーズ: {state.phase} / 戦闘番号: {state.battleIndex} / コアHP: {state.coreHp}
       </div>
 
-      {onOpenTurnTest && (
+      {(onOpenTurnTest || onOpenFreeLayerTest) && (
         <div className="debug-panel__group">
           <label>検証中の別モード</label>
           <div className="debug-panel__row">
-            <button className="btn btn--small" onClick={onOpenTurnTest}>
-              ⚔️ コマンドバトルTESTを開く
-            </button>
+            {onOpenTurnTest && (
+              <button className="btn btn--small" onClick={onOpenTurnTest}>
+                ⚔️ コマンドバトルTESTを開く
+              </button>
+            )}
+            {onOpenFreeLayerTest && (
+              <button className="btn btn--small" onClick={onOpenFreeLayerTest}>
+                🧪 自由合体レイヤーTESTを開く
+              </button>
+            )}
           </div>
         </div>
       )}

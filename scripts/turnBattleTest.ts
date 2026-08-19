@@ -180,6 +180,12 @@ section('既存オートバトルの健全性確認');
       description: '',
       icon: '🎯',
       color: '#888',
+      // TEST7統合: このダミーはオートバトルの健全性だけを検証する的で、ドロップ・ギミックは
+      // 検証対象ではないため、空(=ドロップ不可・ギミックなし)が正しい値。
+      bodyPartIds: [],
+      rareDropPartIds: [],
+      gimmickSummary: '',
+      gimmicks: [],
       ...overrides,
     };
   }

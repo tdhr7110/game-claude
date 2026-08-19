@@ -683,8 +683,24 @@ export const ALL_PARTS: PartDef[] = [WEAK_ARM, ...INSECT_PARTS, ...GOLEM_PARTS, 
 
 export const PARTS_BY_ID: Record<string, PartDef> = Object.fromEntries(ALL_PARTS.map((p) => [p.id, p]));
 
+// 融合（TEST16）で生成される部位は通常ドロップのプールには含めず、こことは別枠で登録する。
+// data/fusion.ts が自身の読み込み時に registerAdditionalParts() を呼び出して埋める
+// （fusion.ts → parts.ts の一方向importのみで循環参照を作らないための単純なレジストリ）。
+const EXTRA_PARTS_BY_ID: Record<string, PartDef> = {};
+
+export function registerAdditionalParts(defs: PartDef[]): void {
+  for (const def of defs) EXTRA_PARTS_BY_ID[def.id] = def;
+}
+
+// 通常部位・融合結果部位のどちらのidも受け入れる存在チェック。EXTRA_PARTS_BY_ID自体は
+// モジュール非公開のため、PARTS_BY_IDへの直接hasOwnPropertyチェックでは融合部位を
+// 「未知の部位」として弾いてしまう箇所(セーブデータ検証など)はこちらを使う。
+export function isKnownPartId(id: string): boolean {
+  return Object.prototype.hasOwnProperty.call(PARTS_BY_ID, id) || Object.prototype.hasOwnProperty.call(EXTRA_PARTS_BY_ID, id);
+}
+
 export function getPartDef(id: string): PartDef {
-  const def = PARTS_BY_ID[id];
+  const def = PARTS_BY_ID[id] ?? EXTRA_PARTS_BY_ID[id];
   if (!def) throw new Error(`Unknown part id: ${id}`);
   return def;
 }

@@ -84,7 +84,11 @@ export type PartEffect =
   // 全ての部位種類について、能力発動時に低確率でもう一度発動する（暴走遺伝子）
   | { kind: 'double_activation_chance_all'; chance: number }
   // 心臓・臓器の装着数に応じて最大HPと攻撃力が上昇する（巨大心臓）
-  | { kind: 'heart_count_bonus'; hpPerHeart: number; attackPctPerHeart: number };
+  | { kind: 'heart_count_bonus'; hpPerHeart: number; attackPctPerHeart: number }
+  // --- 融合専用能力（ボス撃破後の任意融合でのみ付与される。通常ドロップの部位には付かない） ---
+  // 攻撃命中時、一定確率で追加ダメージを発生させる。ただし1戦闘あたりの発動回数に上限を設け、
+  // 「能力発動が無限に連鎖しない」ことを構造的に保証する（上限はbattle.ts側でmaxActivationsPerBattleを厳守）。
+  | { kind: 'fusion_burst_on_hit'; chance: number; bonusDamagePct: number; maxActivationsPerBattle: number };
 
 export interface PartDef {
   id: string;
@@ -102,6 +106,10 @@ export interface PartDef {
   icon: string;
   color: string;
   effects: PartEffect[];
+  // --- 融合部位のみ設定される（通常ドロップの部位にはundefined） ---
+  isFused?: boolean; // trueの場合、この部位自体をさらに融合の材料にすることはできない（再帰・無限連鎖の防止）
+  fusionSourceIds?: [string, string]; // 融合元となった2部位のdefId
+  fusionRecipeId?: string; // 由来レシピID（図鑑・重複登録判定に使用）
 }
 
 export interface PartInstance {
@@ -115,6 +123,13 @@ export interface PartInstance {
 
 export type EnemyTier = 'normal' | 'elite' | 'miniboss' | 'boss';
 
+// 大技の予兆表示（TEST7: 敵選択で事前説明したうえで、身構える等の対策コマンドで軽減できるようにするための
+// 純粋にデータ駆動な仕組み。特定moveの発動タイマーが残りwarnBeforeSec以内になったら一度だけログを出す）
+export interface MoveTelegraph {
+  warnBeforeSec: number;
+  message: string;
+}
+
 export interface EnemyMove {
   id: string;
   name: string;
@@ -123,6 +138,27 @@ export interface EnemyMove {
   tags: AbilityTag[];
   effects: PartEffect[];
   icon: string;
+  telegraph?: MoveTelegraph;
+}
+
+// ------------------------------------------------------------
+// 敵固有ギミック（TEST7: enemyGimmickEngine.ts が解釈する実行時ギミック）
+// ここに列挙された種類だけを engine 側が処理する。敵IDごとの分岐は持たず、
+// kind + params の組み合わせだけで全敵の挙動を表現する。
+// ------------------------------------------------------------
+
+export type GimmickKind =
+  | 'poison_ramp' // 時間経過で毒の付与量(status_amount_bonus相当)が増えていく
+  | 'enrage_below_hp' // HP割合が閾値以下になると攻撃速度が上昇する
+  | 'periodic_reflect' // 一定周期・一定時間だけ反射状態になる
+  | 'burn_stack_explode' // 相手が炎上中のとき、一定間隔で追加の爆発ダメージ
+  | 'evade_charge' // 回避の構え→直後に突撃、突撃後は自身の防御が下がる
+  | 'stance_cycle' // 防御姿勢(被ダメ軽減)⇄攻撃姿勢(被ダメ増加の隙)を周期で切り替える
+  | 'phase_shift_below_hp'; // HP割合が閾値を下回った瞬間に一度だけ強化される(中ボス/ボス向け)
+
+export interface EnemyGimmickEffectDef {
+  kind: GimmickKind;
+  params: Record<string, number>;
 }
 
 export interface EnemyDef {
@@ -138,6 +174,17 @@ export interface EnemyDef {
   description: string;
   icon: string;
   color: string;
+  // --- TEST7: 敵撃破ドロップの部位限定 + 敵選択画面用ギミック情報 ---
+  // この敵が実際に持つ通常部位。通常ドロップはここからのみ抽選する(最低3個)。
+  bodyPartIds: string[];
+  // 低確率でのみ入手できるレア部位。0件でもよい。
+  rareDropPartIds: string[];
+  // 敵選択画面に事前表示する固有ギミックの説明文(必須。予兆・複数周期攻撃など
+  // move側だけで表現されるギミックの説明もここに含める)。
+  gimmickSummary: string;
+  // enemyGimmickEngine.ts が実際に処理する数値ギミック。0件でもよい
+  // (telegraphや複数moveの非同期発動などmoves側だけで完結するギミックはここに含めない)。
+  gimmicks: EnemyGimmickEffectDef[];
 }
 
 // ------------------------------------------------------------

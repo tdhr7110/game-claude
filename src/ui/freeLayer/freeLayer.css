@@ -1,0 +1,61 @@
+/* TEST11: 自由合体レイヤー表示の検証画面専用スタイル。既存の縦画面UI(.screen等)は変更しない。
+   合成キャンバス本体(.free-layer-canvas等)のスタイルはfreeLayerCanvas.css側にあり、
+   FreeLayerFigure.tsxが自分でimportする。 */
+
+.free-layer-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  background: #0b0f14;
+  color: #e5e7eb;
+  overflow-y: auto;
+}
+
+.free-layer-screen__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #12181f;
+  border-bottom: 1px solid #263041;
+  font-weight: 600;
+}
+
+.free-layer-screen__error,
+.free-layer-screen__loading {
+  padding: 24px 14px;
+  text-align: center;
+  color: #9ca3af;
+}
+
+.free-layer-screen__stage {
+  display: flex;
+  justify-content: center;
+  padding: 20px 14px;
+}
+
+.free-layer-screen__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 14px 24px;
+  max-width: 520px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.free-layer-screen__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.free-layer-screen__slider-label {
+  min-width: 4.5em;
+}

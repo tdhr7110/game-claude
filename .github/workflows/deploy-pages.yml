@@ -189,6 +189,26 @@ jobs:
           mkdir -p ../dist/test11
           cp -r dist/. ../dist/test11/
 
+      # フェーズ17（TEST17: TEST11の既存機能+自由合体レイヤー表示 に、TEST12のローカル計測機能と
+      # TEST16の任意部位融合システムを統合した検証版）を /test17/ サブパスに同梱する。
+      # TEST1〜11・正式版とは完全に独立したブランチで、取得・ビルドに失敗しても他のデプロイは継続する。
+      - name: Checkout test17 branch (TEST11+TEST12計測+TEST16融合 統合検証用)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: test17/chimera-integrated-latest
+          path: test17-branch
+
+      - name: Build test17 branch into /test17/ subpath
+        if: hashFiles('test17-branch/package.json') != ''
+        continue-on-error: true
+        run: |
+          cd test17-branch
+          npm ci
+          npm run build -- --base=/game-claude/test17/
+          mkdir -p ../dist/test17
+          cp -r dist/. ../dist/test17/
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

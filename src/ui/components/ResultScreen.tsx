@@ -6,6 +6,7 @@ import { computeModifiers } from '../../engine/modifiers';
 import { PartCard } from './PartCard';
 import { SynergyPanel } from './SynergyPanel';
 import { ChimeraAvatar } from './ChimeraAvatar';
+import { SurveyPrompt } from './SurveyPrompt';
 
 const DEFAULT_NAME = '名もなきキメラ';
 
@@ -84,6 +85,8 @@ export function ResultScreen() {
 
       <h2>最終シナジー</h2>
       <SynergyPanel synergies={synergies} critChancePct={critChancePct} />
+
+      <SurveyPrompt />
 
       <button className="btn btn--primary btn--large" onClick={() => dispatch({ type: 'RESET' })}>
         🔄 新しいランを開始する
