@@ -1,5 +1,5 @@
-import type { EnemyMove, EnemyTier, Species } from './types';
-import { ALL_ELITE_ENEMIES, ALL_NORMAL_ENEMIES, buildDeepFinalBoss, buildFinalBoss } from './enemies';
+import type { EnemyGimmickEffectDef, EnemyMove, EnemyTier, Species } from './types';
+import { ALL_ELITE_ENEMIES, ALL_NORMAL_ENEMIES, buildDeepFinalBoss, buildFinalBoss, buildMinibossFromBase } from './enemies';
 
 // ============================================================
 // 敵図鑑(優先7)用の「敵ロースター」。
@@ -23,21 +23,35 @@ export interface EnemyRosterEntry {
   icon: string;
   color: string;
   moves: EnemyMove[];
-  // 将来「敵が所持する部位」データが追加された場合のための予約フィールド。
-  // 現行仕様には敵の所持部位データが存在しないため、常にundefinedのまま扱う。
-  heldPartIds?: string[];
+  // TEST7統合: この敵が実際に落とす部位。図鑑の「所持部位」表示・実戦闘のドロップ抽選と
+  // 同じ値を使う(表示専用の別データを持たない)。
+  bodyPartIds: string[];
+  rareDropPartIds: string[];
+  gimmickSummary: string;
+  gimmicks: EnemyGimmickEffectDef[];
 }
 
-const MINIBOSS_ROSTER: EnemyRosterEntry[] = ALL_ELITE_ENEMIES.map((e) => ({
-  id: `${e.id}_miniboss`,
-  name: `【中ボス】強化${e.name}`,
-  species: e.species,
-  tier: 'miniboss',
-  description: e.description,
-  icon: e.icon,
-  color: e.color,
-  moves: e.moves,
-}));
+// 中ボスは実戦闘ではbuildMinibossFromBaseで強化生成されるため、図鑑の代表エントリも
+// 同じ関数を通してgimmickSummary/gimmicksを取得する(覚醒ギミックが追加された
+// 実際の中ボスの姿と食い違わないようにするため)。hp等の数値は基準の強敵のまま据え置く
+// (図鑑は「スケーリング後の一時的な数値」ではなく基準の姿を表示する方針のため)。
+const MINIBOSS_ROSTER: EnemyRosterEntry[] = ALL_ELITE_ENEMIES.map((e) => {
+  const miniboss = buildMinibossFromBase(e);
+  return {
+    id: `${e.id}_miniboss`,
+    name: `【中ボス】強化${e.name}`,
+    species: e.species,
+    tier: 'miniboss' as EnemyTier,
+    description: e.description,
+    icon: e.icon,
+    color: e.color,
+    moves: e.moves,
+    bodyPartIds: e.bodyPartIds,
+    rareDropPartIds: e.rareDropPartIds,
+    gimmickSummary: miniboss.gimmickSummary,
+    gimmicks: miniboss.gimmicks,
+  };
+});
 
 const BOSS_ROSTER: EnemyRosterEntry[] = [buildFinalBoss(), buildDeepFinalBoss()].map((e) => ({
   id: e.id,
@@ -48,11 +62,41 @@ const BOSS_ROSTER: EnemyRosterEntry[] = [buildFinalBoss(), buildDeepFinalBoss()]
   icon: e.icon,
   color: e.color,
   moves: e.moves,
+  bodyPartIds: e.bodyPartIds,
+  rareDropPartIds: e.rareDropPartIds,
+  gimmickSummary: e.gimmickSummary,
+  gimmicks: e.gimmicks,
 }));
 
 export const ENEMY_ROSTER: EnemyRosterEntry[] = [
-  ...ALL_NORMAL_ENEMIES.map((e) => ({ id: e.id, name: e.name, species: e.species, tier: e.tier, description: e.description, icon: e.icon, color: e.color, moves: e.moves })),
-  ...ALL_ELITE_ENEMIES.map((e) => ({ id: e.id, name: e.name, species: e.species, tier: e.tier, description: e.description, icon: e.icon, color: e.color, moves: e.moves })),
+  ...ALL_NORMAL_ENEMIES.map((e) => ({
+    id: e.id,
+    name: e.name,
+    species: e.species,
+    tier: e.tier,
+    description: e.description,
+    icon: e.icon,
+    color: e.color,
+    moves: e.moves,
+    bodyPartIds: e.bodyPartIds,
+    rareDropPartIds: e.rareDropPartIds,
+    gimmickSummary: e.gimmickSummary,
+    gimmicks: e.gimmicks,
+  })),
+  ...ALL_ELITE_ENEMIES.map((e) => ({
+    id: e.id,
+    name: e.name,
+    species: e.species,
+    tier: e.tier,
+    description: e.description,
+    icon: e.icon,
+    color: e.color,
+    moves: e.moves,
+    bodyPartIds: e.bodyPartIds,
+    rareDropPartIds: e.rareDropPartIds,
+    gimmickSummary: e.gimmickSummary,
+    gimmicks: e.gimmicks,
+  })),
   ...MINIBOSS_ROSTER,
   ...BOSS_ROSTER,
 ];

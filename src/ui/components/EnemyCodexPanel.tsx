@@ -4,6 +4,11 @@ import { ENEMY_ROSTER, TOTAL_ENEMY_COUNT, type EnemyRosterEntry } from '../../da
 import type { EnemyTier, Species } from '../../data/types';
 import { SPECIES_LABELS, TAG_LABELS } from '../../data/types';
 import { discoveredEnemyCount, isEnemyDefeated, isEnemyEncountered } from '../../engine/codex';
+import { PARTS_BY_ID } from '../../data/parts';
+
+function partLabel(partId: string): string {
+  return PARTS_BY_ID[partId]?.name ?? partId;
+}
 
 type DiscoveryFilter = 'all' | 'discovered' | 'undiscovered';
 
@@ -173,10 +178,22 @@ export function EnemyCodexPanel() {
                   </div>
                 ))}
               </div>
-              {selectedEntry.heldPartIds && selectedEntry.heldPartIds.length > 0 && (
+              {selectedEntry.gimmickSummary && (
+                <div className="enemy-detail__gimmick">
+                  <div className="muted">🌀 固有ギミック</div>
+                  <p className="detail-panel__desc">{selectedEntry.gimmickSummary}</p>
+                </div>
+              )}
+              {selectedEntry.bodyPartIds.length > 0 && (
                 <div className="enemy-detail__parts">
                   <div className="muted">🦴 所持部位</div>
-                  <div>{selectedEntry.heldPartIds.join('、')}</div>
+                  <div>{selectedEntry.bodyPartIds.map(partLabel).join('、')}</div>
+                </div>
+              )}
+              {selectedEntry.rareDropPartIds.length > 0 && (
+                <div className="enemy-detail__parts">
+                  <div className="muted">✨ レアドロップ部位</div>
+                  <div>{selectedEntry.rareDropPartIds.map(partLabel).join('、')}</div>
                 </div>
               )}
             </>

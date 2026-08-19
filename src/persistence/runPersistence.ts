@@ -1,34 +1,36 @@
 import type { RunState, GamePhase } from '../engine/run';
-import type { EnemyDef, EnemyMove, PartInstance, Species } from '../data/types';
+import type { EnemyDef, EnemyGimmickEffectDef, EnemyMove, GimmickKind, PartInstance, Species } from '../data/types';
 import { PARTS_BY_ID } from '../data/parts';
 import { RUN_SAVE_KEY } from './storageKeys';
 import { safeGetItem, safeRemoveItem, safeSetItem } from './storageAvailability';
 
 // ============================================================
-// ラン途中保存(優先6)。
+// ラン途中保存(優先6)。TEST10でTEST7(敵候補選択・敵固有ギミック)と統合。
 //
 // 戦闘中の毎フレーム保存はコストが高く壊れやすいため行わない。
 // GameContext側がRunState(フェーズ単位でしか変化しない)をそのまま渡すだけで、
-// 結果的に「戦闘準備・敵選択・戦闘開始直前・戦闘勝利後・ドロップ選択・次戦移動」の
-// 各チェックポイントで保存されることになる(戦闘のTick処理はRunStateを一切
-// 変更しないため、戦闘中の毎フレーム保存にはならない)。
+// 結果的に「戦闘準備・敵候補選択・敵選択・戦闘開始直前・戦闘勝利後・ドロップ選択・
+// 次戦移動」の各チェックポイントで保存されることになる(戦闘のTick処理はRunStateを
+// 一切変更しないため、戦闘中の毎フレーム保存にはならない)。
 //
 // JSON.parseの結果は無条件でRunStateとして扱わず、必ずスキーマ検証してから使う。
 // 検証に失敗した場合(壊れたデータ・古いsaveVersion・localStorage不可)は
 // nullを返し、呼び出し側は新規ランとして継続できるようにする。
+//
+// 敵候補(RunState.enemyCandidates)はRunState内の1箇所でのみ保持する
+// (TEST9時代のRunSaveEnvelope.enemyCandidatesという別枠の予約フィールドは廃止した。
+// 二重管理すると復元時にどちらが正か曖昧になり、リロードのたびに再抽選される・
+// 選んだ敵が変わる、といった不具合の原因になるため)。
 // ============================================================
 
-export const RUN_SAVE_VERSION = 1;
+export const RUN_SAVE_VERSION = 2;
 
-const PHASES: GamePhase[] = ['prep', 'battle', 'drop', 'result'];
+const PHASES: GamePhase[] = ['prep', 'enemySelect', 'battle', 'drop', 'result'];
 
 export interface RunSaveEnvelope {
   saveVersion: number;
   savedAt: number;
   state: RunState;
-  // 将来「敵候補から選ぶ」演出が追加された場合のための予約フィールド。
-  // 現行仕様には敵候補選択の概念がないため、常に空配列で保存される。
-  enemyCandidates: EnemyDef[];
 }
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
@@ -56,6 +58,34 @@ function isNullableStringArray(v: unknown): v is (string | null)[] {
 const SPECIES: (Species | 'chimera')[] = ['insect', 'golem', 'dragon', 'none', 'chimera'];
 const TIERS = ['normal', 'elite', 'miniboss', 'boss'];
 
+// TEST7で追加された、enemyGimmickEngine.tsが解釈するギミック種別。
+// ここに含まれない種別のデータは(将来の形式変更等で)復元時に拒否する。
+const GIMMICK_KINDS: GimmickKind[] = [
+  'poison_ramp',
+  'enrage_below_hp',
+  'periodic_reflect',
+  'burn_stack_explode',
+  'evade_charge',
+  'stance_cycle',
+  'phase_shift_below_hp',
+];
+
+function isNumberRecord(v: unknown): v is Record<string, number> {
+  if (!isPlainObject(v)) return false;
+  return Object.values(v).every((n) => typeof n === 'number' && Number.isFinite(n));
+}
+
+function isEnemyGimmick(v: unknown): v is EnemyGimmickEffectDef {
+  if (!isPlainObject(v)) return false;
+  return typeof v.kind === 'string' && GIMMICK_KINDS.includes(v.kind as GimmickKind) && isNumberRecord(v.params);
+}
+
+function isMoveTelegraph(v: unknown): boolean {
+  if (v === undefined) return true;
+  if (!isPlainObject(v)) return false;
+  return typeof v.warnBeforeSec === 'number' && typeof v.message === 'string';
+}
+
 function isEnemyMove(v: unknown): v is EnemyMove {
   if (!isPlainObject(v)) return false;
   return (
@@ -65,7 +95,8 @@ function isEnemyMove(v: unknown): v is EnemyMove {
     typeof v.interval === 'number' &&
     Array.isArray(v.tags) &&
     Array.isArray(v.effects) &&
-    typeof v.icon === 'string'
+    typeof v.icon === 'string' &&
+    isMoveTelegraph(v.telegraph)
   );
 }
 
@@ -86,7 +117,14 @@ function isEnemyDef(v: unknown): v is EnemyDef {
     v.moves.every(isEnemyMove) &&
     typeof v.description === 'string' &&
     typeof v.icon === 'string' &&
-    typeof v.color === 'string'
+    typeof v.color === 'string' &&
+    // TEST7: 敵固有ドロップ・敵選択画面向けギミック情報。復元時もここで検証し、
+    // 壊れた/旧形式のデータ(bodyPartIds等が欠けたセーブ)を安全に無効化する。
+    isStringArray(v.bodyPartIds) &&
+    isStringArray(v.rareDropPartIds) &&
+    typeof v.gimmickSummary === 'string' &&
+    Array.isArray(v.gimmicks) &&
+    v.gimmicks.every(isEnemyGimmick)
   );
 }
 
@@ -99,6 +137,11 @@ function isRunState(v: unknown): v is RunState {
   if (!isPartInstanceArray(v.equipped)) return false;
   if (!isPartInstanceArray(v.inventory)) return false;
   if (v.currentEnemy !== null && !isEnemyDef(v.currentEnemy)) return false;
+  // TEST7: 敵選択画面用の候補。RunState.enemyCandidatesがこのデータの唯一の正である
+  // (RunSaveEnvelope側に候補用の別枠は存在しない)。ここで厳密に検証することで、
+  // enemySelectフェーズ中にリロードしても候補が再抽選されず、選んだ敵も
+  // 正しく復元されることを保証する。
+  if (!Array.isArray(v.enemyCandidates) || !v.enemyCandidates.every(isEnemyDef)) return false;
   if (!Array.isArray(v.dropCandidates) || !v.dropCandidates.every((d) => isPlainObject(d) && typeof d.id === 'string' && Object.prototype.hasOwnProperty.call(PARTS_BY_ID, d.id))) {
     return false;
   }
@@ -129,7 +172,6 @@ function isRunSaveEnvelope(v: unknown): v is RunSaveEnvelope {
   if (typeof v.saveVersion !== 'number') return false;
   if (typeof v.savedAt !== 'number') return false;
   if (!isRunState(v.state)) return false;
-  if (!Array.isArray(v.enemyCandidates) || !v.enemyCandidates.every(isEnemyDef)) return false;
   return true;
 }
 
@@ -138,7 +180,6 @@ export function saveRunState(state: RunState): void {
     saveVersion: RUN_SAVE_VERSION,
     savedAt: Date.now(),
     state,
-    enemyCandidates: [],
   };
   try {
     safeSetItem(RUN_SAVE_KEY, JSON.stringify(envelope));
