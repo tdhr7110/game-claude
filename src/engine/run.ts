@@ -41,6 +41,12 @@ export interface RunState {
   // コマンドシステム(TEST5): 4枠ぶんのfamilyId。nullは空き枠。
   // familyIdで持つことで、部位構成によって進化後の技が自動的に反映される。
   commandLoadout: (string | null)[];
+  // コマンド獲得・進化演出(TEST6): 一度でも解放・進化を確認したcommandIdの一覧。
+  // 同じコマンドを再度装着し直しても演出が重複発生しないようにするための既知リスト。
+  knownCommandIds: string[];
+  // まだ報酬演出またはコマンド編集画面で確認していないcommandIdの一覧。
+  // 下部ナビゲーション「コマンド」のNEWバッジ表示に使う。
+  unseenCommandIds: string[];
 }
 
 function nextInstanceId(state: RunState): [string, RunState] {
@@ -64,6 +70,8 @@ export function createInitialRunState(): RunState {
     instanceSeq: 0,
     verboseLog: false,
     commandLoadout: [...DEFAULT_COMMAND_LOADOUT],
+    knownCommandIds: [],
+    unseenCommandIds: [],
   };
   for (let i = 0; i < 2; i++) {
     const [id, next] = nextInstanceId(state);
@@ -160,6 +168,26 @@ export function setCommandSlot(state: RunState, slotIndex: number, familyId: str
     return f;
   });
   return { state: { ...state, commandLoadout: nextLoadout }, ok: true };
+}
+
+// 部位獲得後に新しく解放・進化したコマンドを「既知」「未確認」として記録する。
+// (「同じコマンドを二重獲得しない」「NEWバッジ表示」要件のための共通処理)
+export function recordCommandDiscoveries(state: RunState, commandIds: string[]): RunState {
+  if (commandIds.length === 0) return state;
+  const known = new Set(state.knownCommandIds);
+  const unseen = new Set(state.unseenCommandIds);
+  for (const id of commandIds) {
+    known.add(id);
+    unseen.add(id);
+  }
+  return { ...state, knownCommandIds: Array.from(known), unseenCommandIds: Array.from(unseen) };
+}
+
+// 指定したcommandId(省略時は全て)を「確認済み」にし、NEWバッジを解除する。
+export function markCommandsSeen(state: RunState, commandIds?: string[]): RunState {
+  if (!commandIds) return state.unseenCommandIds.length === 0 ? state : { ...state, unseenCommandIds: [] };
+  const remove = new Set(commandIds);
+  return { ...state, unseenCommandIds: state.unseenCommandIds.filter((id) => !remove.has(id)) };
 }
 
 // --- 敵生成 ---

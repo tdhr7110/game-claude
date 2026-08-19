@@ -1,4 +1,5 @@
 import type { AbilityTag, PartDef, PartType, Rarity } from './types';
+import { getPartDef } from './parts';
 
 // ============================================================
 // 「代謝ゲージ」駆動のコマンドシステム（オートバトルを維持したまま、
@@ -149,6 +150,9 @@ export interface CommandDef extends CommandCondition {
   evolvedFrom: string | null; // 進化元のcommandId(表示用)
   icon: string;
   color: string;
+  // コマンド獲得・進化演出の派手さを決めるレアリティ。未指定の場合はresolveCommandRarity()が
+  // 「進化後コマンドの定義 → 解放に関係した部位の最高レアリティ → コモン」の順で決定する。
+  rarity?: Rarity;
 }
 
 // ------------------------------------------------------------
@@ -594,4 +598,41 @@ export function resolveAllFamilies(equipped: PartDef[]): ResolvedFamily[] {
     command: resolveFamilyBestCommand(familyId, equipped),
     allTiers: getCommandsInFamily(familyId),
   }));
+}
+
+// ------------------------------------------------------------
+// コマンド獲得・進化演出用: レアリティ解決（報酬フローから利用）
+// ------------------------------------------------------------
+
+const RARITY_ORDER: Rarity[] = ['common', 'uncommon', 'rare'];
+
+// そのコマンドの解放に直接関係した部位を集める(演出のレアリティ判定・表示用)。
+export function commandSourceParts(cmd: CommandDef, equipped: PartDef[]): PartDef[] {
+  const ids = new Set<string>();
+  cmd.requiredPartIds?.forEach((id) => ids.add(id));
+  cmd.requiredPartCounts?.forEach((r) => ids.add(r.partId));
+  const result = Array.from(ids).map((id) => getPartDef(id));
+  if (cmd.requiredAnyOf) {
+    for (const pred of cmd.requiredAnyOf) {
+      const match = equipped.find(
+        (p) =>
+          (pred.rarity ? p.rarity === pred.rarity : true) &&
+          (pred.type ? p.type === pred.type : true) &&
+          (pred.idPrefix ? p.id.startsWith(pred.idPrefix) : true)
+      );
+      if (match) result.push(match);
+    }
+  }
+  return result;
+}
+
+// コマンドのレアリティ決定: 1.コマンド自身の定義 → 2.解放に関係した部位の最高レアリティ → 3.コモン
+export function resolveCommandRarity(cmd: CommandDef, equipped: PartDef[]): Rarity {
+  if (cmd.rarity) return cmd.rarity;
+  const sourceParts = commandSourceParts(cmd, equipped);
+  let best: Rarity = 'common';
+  for (const p of sourceParts) {
+    if (RARITY_ORDER.indexOf(p.rarity) > RARITY_ORDER.indexOf(best)) best = p.rarity;
+  }
+  return best;
 }

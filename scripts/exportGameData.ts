@@ -35,7 +35,7 @@ import {
 } from '../src/data/types';
 import { PART_TYPE_SYNERGIES, SPECIES_SYNERGIES } from '../src/data/synergies';
 import { ALL_COMMANDS, COMMAND_BALANCE, COMMAND_CATEGORY_LABELS, type CommandDef } from '../src/data/commandDefs';
-import { describeCommandCondition, commandEffectSummary } from '../src/ui/commandFormat';
+import { describeCommandCondition, commandEffectSummary, EFFECT_VALUE_FIELD_LABELS } from '../src/ui/commandFormat';
 
 const ENVIRONMENT = 'TEST5';
 const OUTPUT_FILE = 'CHIMERA_BUTCHER_GameData.xlsx';
@@ -410,44 +410,10 @@ function commandTarget(cmd: CommandDef): string {
   }
 }
 
-const NUMERIC_FIELD_LABELS: Record<string, string> = {
-  damage: '直接ダメージ',
-  fallbackDamage: '基礎攻撃力なし時の代替ダメージ',
-  fixedDamage: '固定ダメージ(防御無視)',
-  damagePerPoison: '毒1あたりダメージ',
-  powerPct: '威力%(基礎威力に対する割合)',
-  hits: 'ヒット数',
-  finisherDamage: '最終撃威力',
-  bonusDamage: '追撃ダメージ',
-  lifestealPct: 'ダメージ吸収率%',
-  defenseIgnorePct: '防御無視率%',
-  healPctOfMax: '最大HP比回復率%',
-  instantPct: '即時回復率%(最大HP比)',
-  tickPctPerSec: '継続回復(毎秒・最大HP比%)',
-  shieldPct: '障壁量%(最大HP比)',
-  reductionPct: '被ダメージ軽減率%',
-  reflectPct: '反射率%',
-  attackSpeedPct: '攻撃速度上昇%',
-  attackSpeedBuffPct: '攻撃速度上昇%',
-  critChancePctAdd: '会心率加算%',
-  critMultAdd: '会心倍率加算',
-  poisonPerArmHit: '腕命中時 追加毒付与量',
-  vulnerabilityPct: '被ダメージ増加率%',
-  durationSec: '効果時間(秒)',
-  burnDps: '炎上ダメージ/秒',
-  burnDuration: '炎上持続時間(秒)',
-  bonusIfBurningPct: '炎上中ボーナス%',
-  maxConsume: '毒消費上限',
-  consumeFraction: '毒消費割合',
-  selfDamagePctOfMax: '自傷率%(最大HP比)',
-  bossDurationMultPct: 'ボス時の効果時間倍率%',
-  poison: '付与する毒量',
-};
-
 function pickFields(cmd: CommandDef, keys: string[]): string {
   return keys
     .filter((k) => k in cmd.effectValues)
-    .map((k) => `${NUMERIC_FIELD_LABELS[k] ?? k}: ${cmd.effectValues[k]}`)
+    .map((k) => `${EFFECT_VALUE_FIELD_LABELS[k] ?? k}: ${cmd.effectValues[k]}`)
     .join(' / ');
 }
 

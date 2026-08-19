@@ -11,6 +11,8 @@ import {
   enterBattle,
   equipPart,
   finishBattle,
+  markCommandsSeen,
+  recordCommandDiscoveries,
   resetRun,
   setCommandSlot,
   skipDrop,
@@ -18,6 +20,7 @@ import {
   unequipPart,
 } from '../engine/run';
 import type { BattleEngine } from '../engine/battle';
+import type { RewardCard } from '../data/rewardPresentation';
 
 export interface NamedChimera {
   id: string;
@@ -69,7 +72,9 @@ type Action =
   | { type: 'DEBUG_GRANT_PART'; defId: string }
   | { type: 'DEBUG_GRANT_AND_EQUIP_PART'; defId: string }
   | { type: 'TOGGLE_VERBOSE' }
-  | { type: 'SET_COMMAND_SLOT'; slotIndex: number; familyId: string | null };
+  | { type: 'SET_COMMAND_SLOT'; slotIndex: number; familyId: string | null }
+  | { type: 'RECORD_COMMAND_DISCOVERIES'; commandIds: string[] }
+  | { type: 'MARK_COMMANDS_SEEN'; commandIds?: string[] };
 
 function reducer(state: RunState, action: Action): RunState {
   switch (action.type) {
@@ -101,6 +106,10 @@ function reducer(state: RunState, action: Action): RunState {
       return toggleVerboseLog(state);
     case 'SET_COMMAND_SLOT':
       return setCommandSlot(state, action.slotIndex, action.familyId).state;
+    case 'RECORD_COMMAND_DISCOVERIES':
+      return recordCommandDiscoveries(state, action.commandIds);
+    case 'MARK_COMMANDS_SEEN':
+      return markCommandsSeen(state, action.commandIds);
     default:
       return state;
   }
@@ -120,6 +129,12 @@ interface GameContextValue {
   // BattleScreenのuseEffectがこの値の変化を検知して戦闘を再構築する(ラン進行自体は変更しない)。
   battleResetSignal: number;
   triggerBattleReset: () => void;
+  // 報酬演出キュー(TEST6): 部位獲得・コマンド獲得・コマンド進化のカードを1件ずつ順番に表示する。
+  // ランの進行状態(RunState)とは別の一時的なUI状態のため、こちらで保持する。
+  rewardQueue: RewardCard[];
+  pushRewardCards: (cards: RewardCard[]) => void;
+  advanceRewardQueue: () => void;
+  clearRewardQueue: () => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -133,6 +148,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [chimeraGallery, setChimeraGallery] = React.useState<NamedChimera[]>(loadGalleryFromStorage);
   const [battleResetSignal, setBattleResetSignal] = React.useState(0);
   const triggerBattleReset = useCallback(() => setBattleResetSignal((v) => v + 1), []);
+  const [rewardQueue, setRewardQueue] = React.useState<RewardCard[]>([]);
+  const pushRewardCards = useCallback((cards: RewardCard[]) => {
+    if (cards.length === 0) return;
+    setRewardQueue((prev) => [...prev, ...cards]);
+  }, []);
+  const advanceRewardQueue = useCallback(() => setRewardQueue((prev) => prev.slice(1)), []);
+  const clearRewardQueue = useCallback(() => setRewardQueue([]), []);
   const addNamedChimera = useCallback((entry: Omit<NamedChimera, 'id' | 'createdAt'>) => {
     const chimera: NamedChimera = { ...entry, id: `chimera_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, createdAt: Date.now() };
     setChimeraGallery((prev) => [chimera, ...prev]);
@@ -160,8 +182,25 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       addNamedChimera,
       battleResetSignal,
       triggerBattleReset,
+      rewardQueue,
+      pushRewardCards,
+      advanceRewardQueue,
+      clearRewardQueue,
     }),
-    [state, equipError, setEquipError, showIntro, chimeraGallery, addNamedChimera, battleResetSignal, triggerBattleReset]
+    [
+      state,
+      equipError,
+      setEquipError,
+      showIntro,
+      chimeraGallery,
+      addNamedChimera,
+      battleResetSignal,
+      triggerBattleReset,
+      rewardQueue,
+      pushRewardCards,
+      advanceRewardQueue,
+      clearRewardQueue,
+    ]
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

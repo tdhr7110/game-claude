@@ -388,3 +388,281 @@
     font-size: 0.95em;
   }
 }
+
+/* ============================================================
+   報酬演出オーバーレイ(TEST6): 部位獲得・コマンド獲得・コマンド進化を
+   共通のカードで表示する。レアリティごとの派手さはdata/rewardPresentation.tsの
+   RARITY_EFFECT_CONFIGから渡されるCSS変数(--reward-*)で切り替え、
+   ここではレアリティ分岐のクラスを最小限(境界線・グロー色)にとどめる。
+   ============================================================ */
+.reward-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.reward-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 3, 12, var(--reward-bg-dark, 0));
+  transition: background 0.2s ease-out;
+}
+.reward-overlay--shake {
+  animation: screen-shake 0.3s ease-in-out;
+}
+
+.reward-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 360px;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--color-panel);
+  border: 2px solid var(--rarity-common);
+  border-radius: var(--radius-lg);
+  padding: 22px 18px 18px;
+  text-align: center;
+  animation: reward-card-pop 0.32s ease-out;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+@keyframes reward-card-pop {
+  0% { opacity: 0; transform: scale(0.85) translateY(10px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.reward-card--rarity-common {
+  border-color: var(--rarity-common);
+}
+.reward-card--rarity-uncommon {
+  border-color: var(--rarity-uncommon);
+  box-shadow: 0 0 24px 2px var(--rarity-uncommon-glow);
+}
+.reward-card--rarity-rare {
+  border-color: var(--rarity-rare);
+  box-shadow: 0 0 36px 6px var(--rarity-rare-glow);
+  animation: reward-card-pop 0.32s ease-out, rare-glow-pulse 1.6s ease-in-out infinite;
+}
+
+.reward-card__progress {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  font-size: 0.72em;
+  color: var(--color-text-dim);
+}
+.reward-card__kicker {
+  font-size: 0.7em;
+  letter-spacing: 0.2em;
+  color: var(--reward-color, var(--color-yellow));
+  font-weight: 800;
+}
+.reward-card__headline {
+  font-size: 1.3em;
+  font-weight: 800;
+  margin: 4px 0 10px;
+}
+.reward-card__icon {
+  position: relative;
+  z-index: 2;
+  font-size: calc(2.6em * var(--reward-scale, 1));
+  margin: 6px 0;
+  filter: drop-shadow(0 0 calc(var(--reward-glow, 0.3) * 16px) var(--reward-color));
+}
+.reward-card__name {
+  position: relative;
+  z-index: 2;
+  font-size: 1.15em;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.reward-card__meta {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.reward-card__desc {
+  font-size: 0.85em;
+  color: var(--color-text-muted);
+  margin: 0 0 10px;
+}
+.reward-card__stats {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  font-size: 0.8em;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+}
+.reward-card__source {
+  font-size: 0.72em;
+  margin-bottom: 10px;
+}
+.reward-card__changes {
+  text-align: left;
+  font-size: 0.78em;
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px 8px 22px;
+  margin: 0 0 12px;
+}
+.reward-card__changes li {
+  margin-bottom: 3px;
+}
+.reward-card__evolution-chain {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 8px;
+  font-size: 0.9em;
+}
+.reward-card__evolution-old {
+  color: var(--color-text-dim);
+}
+.reward-card__evolution-arrow {
+  font-size: 1.1em;
+  color: var(--color-text-dim);
+}
+.reward-card__auto-note {
+  font-size: 0.78em;
+  margin-bottom: 10px;
+}
+.reward-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.reward-card__swap-hint {
+  font-size: 0.82em;
+  margin-bottom: 4px;
+}
+.reward-card__slot-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.reward-card__slot-chip {
+  font-size: 0.78em;
+}
+.reward-card__swap-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* --- 粒子・光の輪・放射ビーム(レアリティに応じてJS側で表示数を変える) --- */
+.reward-card__halo {
+  position: absolute;
+  top: 92px;
+  left: 50%;
+  width: 120px;
+  height: 120px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  border: 2px solid var(--reward-color, var(--rarity-rare));
+  pointer-events: none;
+  animation: reward-halo-ring calc(var(--reward-duration, 1500ms) * 0.8) ease-out forwards;
+}
+@keyframes reward-halo-ring {
+  0% { opacity: 0.8; transform: translateX(-50%) scale(0.4); }
+  100% { opacity: 0; transform: translateX(-50%) scale(1.7); }
+}
+.reward-card__particle {
+  position: absolute;
+  top: 46%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--reward-color, var(--color-yellow));
+  opacity: 0;
+  pointer-events: none;
+  animation: reward-particle-burst var(--reward-duration, 1200ms) ease-out forwards;
+  animation-delay: calc(var(--i, 0) * 18ms);
+}
+@keyframes reward-particle-burst {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(calc(360deg / max(var(--n, 1), 1) * var(--i, 0))) translateY(0) scale(0.6); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(calc(360deg / max(var(--n, 1), 1) * var(--i, 0))) translateY(-90px) scale(1); }
+}
+.reward-card__beams {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.reward-card__beam {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 160px;
+  background: linear-gradient(to bottom, var(--reward-color, #fff), transparent);
+  transform-origin: top center;
+  transform: translate(-50%, 0) rotate(calc(360deg / max(var(--n, 1), 1) * var(--i, 0)));
+  opacity: 0;
+  animation: reward-beam-spin var(--reward-duration, 1500ms) ease-out forwards;
+}
+@keyframes reward-beam-spin {
+  0% { opacity: 0; }
+  20% { opacity: calc(var(--reward-glow, 0.5) * 0.8); }
+  100% { opacity: 0; }
+}
+
+/* prefers-reduced-motionが有効な環境では、動きの大きい演出を短いフェードへ切り替える */
+.reward-overlay--reduced .reward-card {
+  animation: reward-card-fade 0.15s ease-out;
+}
+@keyframes reward-card-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reward-card,
+  .reward-card--rarity-rare,
+  .reward-overlay--shake {
+    animation: reward-card-fade 0.15s ease-out !important;
+  }
+}
+
+/* --- 下部ナビ「コマンド」のNEWバッジ・一度だけの発光 --- */
+.bottom-nav__icon {
+  position: relative;
+}
+.bottom-nav__badge {
+  position: absolute;
+  top: -4px;
+  right: -9px;
+  background: var(--color-danger);
+  color: #fff;
+  font-size: 0.6em;
+  font-weight: 800;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.bottom-nav__item--attention {
+  animation: bottom-nav-attention 1.3s ease-in-out 2;
+}
+@keyframes bottom-nav-attention {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.35); background: rgba(168, 85, 247, 0.18); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav__item--attention {
+    animation: none;
+  }
+}

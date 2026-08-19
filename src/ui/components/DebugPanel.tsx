@@ -3,7 +3,10 @@ import { useGame } from '../GameContext';
 import { ALL_PARTS } from '../../data/parts';
 import type { SpeedSetting } from '../../engine/battle';
 import { equippedDefs } from '../../engine/run';
-import { ALL_COMMANDS, COMMAND_BALANCE, resolveAllFamilies } from '../../data/commandDefs';
+import { ALL_COMMANDS, COMMAND_BALANCE, getCommandDef, resolveAllFamilies } from '../../data/commandDefs';
+import type { Rarity } from '../../data/types';
+import { buildCommandRewardCard, buildPartAcquiredCard } from '../rewardCardBuilders';
+import type { CommandChangeEvent } from '../../engine/commandRewards';
 
 const PROTOTYPE_COMMAND_TEST_PART_IDS = [
   'insect_sickle_arm',
@@ -31,6 +34,7 @@ export function DebugPanel({ onOpenTurnTest }: { onOpenTurnTest?: () => void }) 
   const [open, setOpen] = useState(false);
   const [selectedPartId, setSelectedPartId] = useState(ALL_PARTS[0]?.id ?? '');
   const [showCommandTest, setShowCommandTest] = useState(false);
+  const [showRewardTest, setShowRewardTest] = useState(false);
 
   useEffect(() => {
     document.body.classList.toggle('debug-open', open);
@@ -178,6 +182,124 @@ export function DebugPanel({ onOpenTurnTest }: { onOpenTurnTest?: () => void }) 
       </div>
 
       {showCommandTest && <CommandSystemTestSection state={state} dispatch={dispatch} battleEngineRef={battleEngineRef} triggerBattleReset={triggerBattleReset} />}
+
+      <div className="debug-panel__group">
+        <button className="btn btn--small" onClick={() => setShowRewardTest((v) => !v)}>
+          🎁 報酬演出TEST{showRewardTest ? '（閉じる）' : ''}
+        </button>
+      </div>
+
+      {showRewardTest && <RewardFlowTestSection />}
+    </div>
+  );
+}
+
+const RARITY_OPTIONS: Rarity[] = ['common', 'uncommon', 'rare'];
+// 進化演出のプレビュー用に、2段階以上あるfamilyを1つ使う(実データをそのまま利用し、
+// プレビュー専用の別データは作らない)。
+const DEMO_EVOLUTION_FAMILY = 'poisonburst';
+
+function RewardFlowTestSection() {
+  const { state, dispatch, rewardQueue, pushRewardCards, clearRewardQueue } = useGame();
+  const [rarity, setRarity] = useState<Rarity>('rare');
+  const eqDefs = equippedDefs(state);
+
+  function previewPart() {
+    const def = ALL_PARTS.find((p) => p.rarity === rarity) ?? ALL_PARTS[0];
+    pushRewardCards([{ ...buildPartAcquiredCard(def), rarity }]);
+  }
+
+  function previewUnlocked() {
+    const cmd = ALL_COMMANDS.find((c) => c.evolvedFrom === null && c.familyId !== 'strike' && c.familyId !== 'guard' && c.familyId !== 'recover') ?? ALL_COMMANDS[0];
+    const change: CommandChangeEvent = { familyId: cmd.familyId, kind: 'unlocked', from: null, to: cmd, wasEquippedSlot: -1 };
+    pushRewardCards([{ ...buildCommandRewardCard(change, eqDefs), rarity }]);
+  }
+
+  function previewEvolved() {
+    const lower = getCommandDef('cmd_poison_burst')!;
+    const upper = getCommandDef('cmd_plague_burst')!;
+    const change: CommandChangeEvent = { familyId: DEMO_EVOLUTION_FAMILY, kind: 'evolved', from: lower, to: upper, wasEquippedSlot: -1 };
+    pushRewardCards([{ ...buildCommandRewardCard(change, eqDefs), rarity }]);
+  }
+
+  function previewMultiple() {
+    const partDef = ALL_PARTS.find((p) => p.rarity === 'common') ?? ALL_PARTS[0];
+    const unlockCmd = ALL_COMMANDS.find((c) => c.familyId === 'eyefocus') ?? ALL_COMMANDS[0];
+    const lower = getCommandDef('cmd_harden')!;
+    const upper = getCommandDef('cmd_reflect_shell')!;
+    pushRewardCards([
+      { ...buildPartAcquiredCard(partDef), rarity: 'common' },
+      { ...buildCommandRewardCard({ familyId: unlockCmd.familyId, kind: 'unlocked', from: null, to: unlockCmd, wasEquippedSlot: -1 }, eqDefs), rarity: 'uncommon' },
+      { ...buildCommandRewardCard({ familyId: 'harden', kind: 'evolved', from: lower, to: upper, wasEquippedSlot: -1 }, eqDefs), rarity: 'rare' },
+    ]);
+  }
+
+  function makeEmptySlot() {
+    dispatch({ type: 'SET_COMMAND_SLOT', slotIndex: 3, familyId: null });
+  }
+
+  function fillAllSlots() {
+    const families = resolveAllFamilies(eqDefs)
+      .filter((f) => f.command)
+      .slice(0, 4);
+    families.forEach((f, i) => dispatch({ type: 'SET_COMMAND_SLOT', slotIndex: i, familyId: f.familyId }));
+  }
+
+  return (
+    <div className="debug-panel__group cmd-debug-section">
+      <label>プレビューするレアリティ</label>
+      <div className="debug-panel__row">
+        {RARITY_OPTIONS.map((r) => (
+          <button key={r} className={`btn btn--small${rarity === r ? ' btn--primary' : ''}`} onClick={() => setRarity(r)}>
+            {r}
+          </button>
+        ))}
+      </div>
+
+      <label>演出プレビュー(戦闘準備画面などフェーズに関わらず表示されます)</label>
+      <div className="debug-panel__row" style={{ flexWrap: 'wrap' }}>
+        <button className="btn btn--small" onClick={previewPart}>
+          🎁 部位獲得演出
+        </button>
+        <button className="btn btn--small" onClick={previewUnlocked}>
+          ⚡ コマンド獲得演出
+        </button>
+        <button className="btn btn--small" onClick={previewEvolved}>
+          🧬 コマンド進化演出
+        </button>
+        <button className="btn btn--small" onClick={previewMultiple}>
+          📚 複数報酬を連続表示(3件)
+        </button>
+      </div>
+
+      <label>コマンド枠の状態</label>
+      <div className="debug-panel__row">
+        <button className="btn btn--small" onClick={makeEmptySlot}>
+          枠4を空ける
+        </button>
+        <button className="btn btn--small" onClick={fillAllSlots}>
+          可能な範囲で4枠を埋める
+        </button>
+      </div>
+
+      <label>NEWバッジ</label>
+      <div className="debug-panel__row">
+        <button className="btn btn--small" onClick={() => dispatch({ type: 'RECORD_COMMAND_DISCOVERIES', commandIds: ['cmd_plague_burst'] })}>
+          バッジを付与(テスト用)
+        </button>
+        <button className="btn btn--small" onClick={() => dispatch({ type: 'MARK_COMMANDS_SEEN' })}>
+          バッジを解除
+        </button>
+        <span className="muted">未確認: {state.unseenCommandIds.length}件</span>
+      </div>
+
+      <label>報酬演出キュー</label>
+      <div className="debug-panel__row">
+        <button className="btn btn--small btn--danger" onClick={clearRewardQueue}>
+          キューをリセット
+        </button>
+        <span className="muted">キュー残り: {rewardQueue.length}件</span>
+      </div>
     </div>
   );
 }
