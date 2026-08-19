@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { GameProvider, useGame } from './ui/GameContext';
 import { PrepScreen } from './ui/components/PrepScreen';
+import { EnemySelectScreen } from './ui/components/EnemySelectScreen';
 import { BattleScreen } from './ui/components/BattleScreen';
 import { DropScreen } from './ui/components/DropScreen';
 import { ResultScreen } from './ui/components/ResultScreen';
@@ -14,6 +15,7 @@ function Root({ onOpenTurnTest }: { onOpenTurnTest: () => void }) {
   return (
     <div className="app-root">
       {state.phase === 'prep' && <PrepScreen />}
+      {state.phase === 'enemySelect' && <EnemySelectScreen />}
       {state.phase === 'battle' && <BattleScreen />}
       {state.phase === 'drop' && <DropScreen />}
       {state.phase === 'result' && <ResultScreen />}

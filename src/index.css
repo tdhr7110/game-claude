@@ -1104,6 +1104,84 @@ p {
 }
 
 /* ============================================================
+   敵選択画面(TEST7)
+   ============================================================ */
+.enemy-select-screen__lead {
+  margin: 0 0 12px;
+}
+.enemy-select-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 90px; /* sticky-ctaと重ならないための余白 */
+}
+.enemy-select-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--color-panel);
+  border: 2px solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  color: var(--color-text);
+}
+.enemy-select-card--selected {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.35);
+}
+.enemy-select-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.enemy-select-card__icon {
+  font-size: 2em;
+  line-height: 1;
+}
+.enemy-select-card__name {
+  font-weight: 800;
+  font-size: 1.05em;
+}
+.enemy-select-card__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 0.82em;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+.enemy-select-card__desc {
+  font-size: 0.85em;
+  color: var(--color-text-muted);
+  margin: 0 0 8px;
+}
+.enemy-select-card__section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-soft);
+}
+.enemy-select-card__section-title {
+  font-size: 0.82em;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.enemy-select-card__section p {
+  margin: 0;
+}
+.enemy-select-card__part-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.chip--rare {
+  background: rgba(216, 121, 247, 0.18);
+  color: #f2c9ff;
+}
+
+/* ============================================================
    デバッグUI: プレイヤー向けUIと誤認しないよう、目立たない場所・
    地味なトーンにする（機能自体はTEST4でも維持）。
    ============================================================ */

@@ -198,7 +198,7 @@ export function PrepScreen() {
       )}
 
       <div className="sticky-cta">
-        <button className="btn btn--primary btn--large btn--block" onClick={() => dispatch({ type: 'ENTER_BATTLE' })}>
+        <button className="btn btn--primary btn--large btn--block" onClick={() => dispatch({ type: 'ENTER_ENEMY_SELECT' })}>
           ⚔️ 次の戦闘を開始する
         </button>
       </div>
