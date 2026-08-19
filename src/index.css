@@ -2144,6 +2144,17 @@ body.debug-open {
   border-color: rgba(56, 219, 240, 0.7);
   color: #e0f7fa;
 }
+/* TEST7×TEST8統合: 大技の予兆(テレグラフ)。他のトーストより警告色で目立たせ、
+   長めの説明文でもスマホ幅ではみ出さないよう折り返す(白背景ノーラップは使わない)。 */
+.synergy-toast--telegraph {
+  background: linear-gradient(90deg, rgba(248, 113, 113, 0.25), rgba(251, 191, 36, 0.35));
+  border-color: rgba(248, 113, 113, 0.85);
+  color: #fee2e2;
+  white-space: normal;
+  max-width: min(88vw, 320px);
+  text-align: center;
+  animation: toast-pop 1.9s ease-out forwards;
+}
 
 /* --- OVERKILL演出: とどめの一撃が必要量を大きく超えた時のみ表示 --- */
 .fx-overkill {

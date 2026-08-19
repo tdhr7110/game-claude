@@ -49,6 +49,11 @@ export type BattleEvent =
   | { type: 'synergy'; time: number; side: BattleSide; label: string }
   | { type: 'special'; time: number; side: BattleSide; label: string; icon: string }
   | { type: 'overkill'; time: number; side: BattleSide; damage: number }
+  // TEST7×TEST8統合: 大技の予兆(テレグラフ)。敵の攻撃側で発火する。UIは警告色の演出+専用SEに使う。
+  | { type: 'telegraph'; time: number; side: BattleSide; message: string }
+  // TEST7×TEST8統合: 敵固有ギミックが通常攻撃を経由せず直接与える追加ダメージ
+  // (炎上スタック爆発・evade_chargeの突撃など)。attackイベントとは別枠で、専用の演出+SEに使う。
+  | { type: 'gimmick_damage'; time: number; side: BattleSide; damage: number }
   | { type: 'victory'; time: number }
   | { type: 'defeat'; time: number };
 
@@ -235,6 +240,7 @@ export class BattleEngine {
   private gimmick: EnemyGimmickRuntime | null = null;
   private gimmickResult: GimmickTickResult = {
     logs: [],
+    events: [],
     defenseDelta: 0,
     damageReductionDeltaPct: 0,
     evasionDeltaPct: 0,
@@ -746,6 +752,7 @@ export class BattleEngine {
         // TEST7: 大技の予兆表示(データ駆動。特定の敵IDに依存しない汎用処理)
         if (part.telegraph && !part.telegraphFired && part.cooldown - part.timer <= part.telegraph.warnBeforeSec) {
           this.pushLog(part.telegraph.message);
+          this.pushEvent({ type: 'telegraph', side: attacker.side, message: part.telegraph.message });
           part.telegraphFired = true;
         }
         let guard = 0;
@@ -788,6 +795,8 @@ export class BattleEngine {
     });
     this.gimmickResult = result;
     for (const msg of result.logs) this.pushLog(msg);
+    // TEST8統合: ギミックの状態変化を短いトースト演出として表示する(ログはそのまま維持)。
+    for (const ev of result.events) this.pushEvent({ type: 'special', side: 'enemy', label: ev.label, icon: ev.icon });
 
     this.enemy.defense = this.enemyBaseDefense + result.defenseDelta;
     this.enemy.damageReductionPct = Math.max(0, this.enemyBaseDamageReductionPct + result.damageReductionDeltaPct);
@@ -802,6 +811,9 @@ export class BattleEngine {
       const finalDamage = this.applyDefenseAndReduction(result.directDamageToPlayer, this.player);
       const applied = this.dealDamage(this.player, finalDamage, AUTO_SOURCE);
       this.enemy.stats.damageDealt += applied;
+      // TEST8統合: 通常攻撃(resolveAttack)を経由しないギミック直接ダメージも、
+      // ダメージ数値の演出+SEに反映されるよう専用イベントを発生させる。
+      this.pushEvent({ type: 'gimmick_damage', side: 'player', damage: applied });
     }
   }
 

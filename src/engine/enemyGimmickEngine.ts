@@ -16,8 +16,17 @@ export interface GimmickTickContext {
   playerHasBurn: boolean;
 }
 
+// TEST8統合: ギミックの状態変化をBattleEvent(トースト演出)へ変換するための短い構造化イベント。
+// logsは戦闘ログ欄向けの長文、eventsは画面演出向けの短いラベルという役割分担にする
+// (ログ文をそのままトースト表示すると、スマホ幅で折り返し/はみ出しが起きるため)。
+export interface GimmickToastEvent {
+  icon: string;
+  label: string;
+}
+
 export interface GimmickTickResult {
   logs: string[];
+  events: GimmickToastEvent[];
   // 以下はすべて「今フレームの絶対値」。base値に対してbattle.ts側が加算/乗算して適用する。
   defenseDelta: number;
   damageReductionDeltaPct: number;
@@ -32,6 +41,7 @@ export interface GimmickTickResult {
 function emptyResult(): GimmickTickResult {
   return {
     logs: [],
+    events: [],
     defenseDelta: 0,
     damageReductionDeltaPct: 0,
     evasionDeltaPct: 0,
@@ -96,6 +106,7 @@ export class EnemyGimmickRuntime {
         if (ctx.enemyHpPct * 100 <= thresholdPct) {
           if (inst.phaseTimer === 0) {
             result.logs.push('💢 HPが減り、攻撃速度が上昇した！');
+            result.events.push({ icon: '💢', label: '速度上昇' });
           }
           inst.phaseTimer = 1;
           result.attackSpeedMultiplier *= mult;
@@ -113,6 +124,7 @@ export class EnemyGimmickRuntime {
           if (inst.reflectCycleIndex !== cycleIndex) {
             inst.reflectCycleIndex = cycleIndex;
             result.logs.push('🔮 水晶が輝き、反射状態になった！');
+            result.events.push({ icon: '🔮', label: '反射状態' });
           }
           result.reflectPct = Math.max(result.reflectPct, reflectPct);
         }
@@ -130,6 +142,7 @@ export class EnemyGimmickRuntime {
           inst.burnExplodeTimer -= intervalSec;
           result.directDamageToPlayer += damage;
           result.logs.push(`🔥💥 炎上スタックが爆発！追加で${damage}ダメージ`);
+          result.events.push({ icon: '🔥💥', label: '炎上爆発' });
         }
         break;
       }
@@ -146,6 +159,7 @@ export class EnemyGimmickRuntime {
           inst.phase = 'evading';
           inst.phaseTimer = 0;
           result.logs.push('💨 回避の構えを見せた！');
+          result.events.push({ icon: '💨', label: '回避の構え' });
         } else if (inst.phase === 'evading') {
           result.evasionDeltaPct += evasionBonusPct;
           if (inst.phaseTimer >= evadeDurationSec) {
@@ -153,6 +167,7 @@ export class EnemyGimmickRuntime {
             inst.phaseTimer = 0;
             result.directDamageToPlayer += chargeDamage;
             result.logs.push(`💢 突撃！${chargeDamage}ダメージ。直後で防御が下がっている`);
+            result.events.push({ icon: '💢', label: '強襲' });
           }
         } else if (inst.phase === 'exposed') {
           result.defenseDelta += exposedDefenseDelta;
@@ -174,6 +189,7 @@ export class EnemyGimmickRuntime {
         if (wantPhase !== inst.phase) {
           inst.phase = wantPhase;
           result.logs.push(wantPhase === 'guard' ? '🛡️ 防御姿勢に入った' : '👊 攻撃姿勢に移行した！隙が生まれている');
+          result.events.push(wantPhase === 'guard' ? { icon: '🛡️', label: '防御姿勢' } : { icon: '👊', label: '攻撃の隙' });
         }
         if (inst.phase === 'guard') {
           result.damageReductionDeltaPct += guardDamageReductionPct;
@@ -188,6 +204,7 @@ export class EnemyGimmickRuntime {
         if (!inst.triggeredOnce && ctx.enemyHpPct * 100 <= thresholdPct) {
           inst.triggeredOnce = true;
           result.logs.push('🌀 敵が覚醒した！攻撃が激化している');
+          result.events.push({ icon: '🌀', label: '覚醒' });
         }
         if (inst.triggeredOnce) {
           result.attackSpeedMultiplier *= p.attackSpeedMultiplier ?? 1.2;

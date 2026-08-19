@@ -8,7 +8,7 @@
 
 const STORAGE_KEY = 'chimera-battle:test8:se-volume:v1';
 
-export type SEKind = 'hit' | 'crit' | 'poison' | 'burn' | 'heal' | 'guard' | 'reflect' | 'command' | 'victory' | 'defeat';
+export type SEKind = 'hit' | 'crit' | 'poison' | 'burn' | 'heal' | 'guard' | 'reflect' | 'command' | 'victory' | 'defeat' | 'telegraph';
 
 interface SESettings {
   muted: boolean;
@@ -142,11 +142,16 @@ const TONE_TABLE: Record<SEKind, Tone[]> = {
     { freq: 1047, duration: 0.3, type: 'sine', gain: 0.5 },
   ],
   defeat: [{ freq: 300, duration: 0.2, type: 'sawtooth', gain: 0.5, slideTo: 100 }],
+  // TEST7×TEST8統合: 大技の予兆(テレグラフ)専用。他のSEと聞き分けやすい上昇する警告音。
+  telegraph: [
+    { freq: 440, duration: 0.09, type: 'triangle', gain: 0.45, slideTo: 700 },
+    { freq: 440, duration: 0.09, type: 'triangle', gain: 0.45, slideTo: 700 },
+  ],
 };
 
 let lastPlayedAt: Partial<Record<SEKind, number>> = {};
 // 同種SEの過剰な同時発音を防ぐ最小間隔(多腕一斉ヒット等での音割れ・処理負荷対策)
-const MIN_INTERVAL_MS: Partial<Record<SEKind, number>> = { hit: 35, crit: 80, poison: 200, burn: 200 };
+const MIN_INTERVAL_MS: Partial<Record<SEKind, number>> = { hit: 35, crit: 80, poison: 200, burn: 200, telegraph: 400 };
 
 // 音声が利用できない・エラーが起きた場合でもゲーム進行を止めないよう、
 // 内部の処理は必ずtry/catchで囲む。

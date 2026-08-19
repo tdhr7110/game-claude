@@ -40,6 +40,12 @@ function dummyEnemy(overrides: Partial<EnemyDef> = {}): EnemyDef {
     description: '',
     icon: '🎯',
     color: '#888',
+    // TEST7統合: ドロップ抽選・敵選択画面向けフィールド。このダミーは純粋な戦闘性能検証専用の的で
+    // ドロップ・ギミックのいずれも検証対象ではないため、空(=ドロップ不可・ギミックなし)が正しい値。
+    bodyPartIds: [],
+    rareDropPartIds: [],
+    gimmickSummary: '',
+    gimmicks: [],
     ...overrides,
   };
 }

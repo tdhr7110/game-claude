@@ -34,7 +34,8 @@ export interface Toast {
   label: string;
   icon: string;
   side: 'player' | 'enemy';
-  kind: 'synergy' | 'special';
+  // TEST7×TEST8統合: 'telegraph'は大技の予兆専用。他のトーストより警告色で目立たせる。
+  kind: 'synergy' | 'special' | 'telegraph';
 }
 
 // シナジー発動・特殊能力発動を1つの帯として表示する(役割が近く、頻度も抑えたいため共通化)。

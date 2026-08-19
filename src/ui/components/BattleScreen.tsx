@@ -320,6 +320,18 @@ export function BattleScreen() {
           toastsRef.current.push({ id: ++toastIdRef.current, label: e.label, icon: '✨', side: e.side, kind: 'synergy', createdAt: now });
         } else if (e.type === 'special') {
           toastsRef.current.push({ id: ++toastIdRef.current, label: e.label, icon: e.icon, side: e.side, kind: 'special', createdAt: now });
+        } else if (e.type === 'telegraph') {
+          // メッセージ本文は "⚠️ 説明文" の形式(data/enemies.ts参照)。先頭の絵文字をアイコン欄へ、
+          // 残りを短いラベルとして扱う(他のトーストと表示形式を揃えるため)。
+          const spaceIdx = e.message.indexOf(' ');
+          const icon = spaceIdx > 0 ? e.message.slice(0, spaceIdx) : '⚠️';
+          const label = spaceIdx > 0 ? e.message.slice(spaceIdx + 1) : e.message;
+          toastsRef.current.push({ id: ++toastIdRef.current, label, icon, side: e.side, kind: 'telegraph', createdAt: now });
+          playSE('telegraph');
+        } else if (e.type === 'gimmick_damage') {
+          const kind = e.damage >= BIG_DAMAGE_THRESHOLD ? 'big' : 'normal';
+          floatersRef.current.push({ id: ++floaterIdRef.current, side: e.side, text: `🌀${e.damage}`, kind, createdAt: now, xPct: 25 + Math.random() * 50 });
+          playSE('hit');
         } else if (e.type === 'overkill') {
           setOverkillOn(true);
           setTimeout(() => setOverkillOn(false), OVERKILL_MS);
