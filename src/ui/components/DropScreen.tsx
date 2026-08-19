@@ -1,18 +1,42 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../GameContext';
-import { equippedDefs } from '../../engine/run';
+import { acceptDrop, equippedDefs } from '../../engine/run';
 import { previewCostForNewPart } from '../../engine/capacity';
 import { getCapacityInfo } from '../../engine/run';
 import { PartCard } from './PartCard';
 import { PartDetailPanel } from './PartDetailPanel';
 import { computeSynergyDelta } from '../synergyPreview';
+import { detectCommandChanges } from '../../engine/commandRewards';
+import { buildCommandRewardCard, buildPartAcquiredCard } from '../rewardCardBuilders';
+import { getPartDef } from '../../data/parts';
 
 export function DropScreen() {
-  const { state, dispatch } = useGame();
+  const { state, dispatch, pushRewardCards } = useGame();
   const [selectedDefId, setSelectedDefId] = useState<string | null>(null);
 
   const eqDefs = useMemo(() => equippedDefs(state), [state]);
   const capacity = useMemo(() => getCapacityInfo(state), [state]);
+
+  // 部位獲得を確定し、同じ操作の中で新しく解放・進化したコマンドを判定して
+  // 報酬演出キューへ積む。既存のacceptDrop()自体は純粋関数なので、実際にdispatchする前に
+  // 同じ入力で一度呼び、変化前後の装着部位を比較するためだけに使う(判定ロジックの重複実装はしない)。
+  function handleAccept(defId: string, wantEquip: boolean) {
+    const before = eqDefs;
+    const preview = acceptDrop(state, defId, wantEquip);
+    const after = equippedDefs(preview.state);
+    // 一度でも確認済み(knownCommandIds)のcommandIdは、部位の付け外しで再び同じ組み合わせに
+    // 戻っても「新規」として扱わない(演出の二重発生防止)。
+    const changes = detectCommandChanges(before, after, state.commandLoadout).filter(
+      (c) => !state.knownCommandIds.includes(c.to.commandId)
+    );
+
+    const cards = [buildPartAcquiredCard(getPartDef(defId)), ...changes.map((c) => buildCommandRewardCard(c, after))];
+    dispatch({ type: 'ACCEPT_DROP', defId, wantEquip });
+    if (changes.length > 0) {
+      dispatch({ type: 'RECORD_COMMAND_DISCOVERIES', commandIds: changes.map((c) => c.to.commandId) });
+    }
+    pushRewardCards(cards);
+  }
 
   const hasCandidates = state.dropCandidates.length > 0;
   const selectedDef = state.dropCandidates.find((d) => d.id === selectedDefId) ?? null;
@@ -65,14 +89,11 @@ export function DropScreen() {
                   className="btn btn--primary btn--large btn--block"
                   disabled={!canEquip}
                   title={!canEquip ? `接続容量が足りません（必要${previewCost} / 空き${capacity.free}）` : undefined}
-                  onClick={() => dispatch({ type: 'ACCEPT_DROP', defId: selectedDef.id, wantEquip: true })}
+                  onClick={() => handleAccept(selectedDef.id, true)}
                 >
                   すぐ装着する
                 </button>
-                <button
-                  className="btn btn--block"
-                  onClick={() => dispatch({ type: 'ACCEPT_DROP', defId: selectedDef.id, wantEquip: false })}
-                >
+                <button className="btn btn--block" onClick={() => handleAccept(selectedDef.id, false)}>
                   インベントリに保管する
                 </button>
                 <button className="btn btn--ghost btn--block" onClick={() => dispatch({ type: 'SKIP_DROP' })}>

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useGame } from '../GameContext';
 import type { RunState } from '../../engine/run';
 import { equippedDefs, getCapacityInfo, getMaxHp, battleSlotLabel, battleSlotLabelForIndex, BATTLE_SEQUENCE, TOTAL_BATTLES } from '../../engine/run';
-import { getPartDef } from '../../engine/adminStore';
+import { getPartDef } from '../../data/parts';
 import { computeActiveSynergies } from '../../engine/synergyEngine';
 import { computeModifiers } from '../../engine/modifiers';
 import { previewCostForNewPart } from '../../engine/capacity';
@@ -12,14 +12,14 @@ import { CapacityBar } from './CapacityBar';
 import { SynergyPanel } from './SynergyPanel';
 import { ChimeraAvatar } from './ChimeraAvatar';
 import { ChimeraGalleryModal } from './ChimeraGalleryModal';
+import { CommandEditModal } from './CommandEditModal';
 
-type PrepTab = 'status' | 'parts' | 'synergy' | 'menu';
+type PrepTab = 'status' | 'parts' | 'synergy';
 
 const NAV_ITEMS: { id: PrepTab; icon: string; label: string }[] = [
   { id: 'status', icon: '❤️', label: 'ステータス' },
   { id: 'parts', icon: '🦴', label: '部位' },
   { id: 'synergy', icon: '⭐', label: 'シナジー' },
-  { id: 'menu', icon: '☰', label: 'メニュー' },
 ];
 
 interface SelectedPart {
@@ -33,6 +33,15 @@ export function PrepScreen() {
   const [tab, setTab] = useState<PrepTab>('parts');
   const [selected, setSelected] = useState<SelectedPart | null>(null);
   const [showGallery, setShowGallery] = useState(false);
+  const [showCommandEdit, setShowCommandEdit] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const unseenCommandCount = state.unseenCommandIds.length;
+
+  function openCommandEdit() {
+    setShowCommandEdit(true);
+    // 編集画面を開いて内容を確認したことをもってNEWバッジを解除する。
+    if (unseenCommandCount > 0) dispatch({ type: 'MARK_COMMANDS_SEEN' });
+  }
 
   const eqDefs = useMemo(() => equippedDefs(state), [state]);
   const capacity = useMemo(() => getCapacityInfo(state), [state]);
@@ -47,7 +56,8 @@ export function PrepScreen() {
       ? capacity.instanceCosts[selected.instanceId]
       : previewCostForNewPart(selectedDef!, eqDefs)
     : undefined;
-  const activeSynergyCount = Object.values(synergies.partType).reduce((n, g) => n + g.activeTiers.length, 0) +
+  const activeSynergyCount =
+    Object.values(synergies.partType).reduce((n, g) => n + g.activeTiers.length, 0) +
     Object.values(synergies.species).reduce((n, g) => n + g.activeTiers.length, 0);
 
   function tryEquip(instanceId: string, cost: number) {
@@ -77,10 +87,49 @@ export function PrepScreen() {
           <button className="btn btn--small btn--ghost" onClick={() => setShowGallery(true)} title="記録したキメラを見る">
             🏛️{chimeraGallery.length > 0 ? `(${chimeraGallery.length})` : ''}
           </button>
+          <button className="btn btn--small btn--ghost" onClick={() => setShowMenu(true)} title="その他のメニュー">
+            ⋯
+          </button>
         </div>
       </header>
 
       {showGallery && <ChimeraGalleryModal onClose={() => setShowGallery(false)} />}
+      {showCommandEdit && <CommandEditModal onClose={() => setShowCommandEdit(false)} />}
+      {showMenu && (
+        <div className="modal-overlay" onClick={() => setShowMenu(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-card__header">
+              <h2 style={{ margin: 0, fontSize: '1.1em' }}>☰ メニュー</h2>
+              <button className="modal-card__close" onClick={() => setShowMenu(false)}>
+                ✕
+              </button>
+            </div>
+            <div className="prep-menu-list">
+              <button
+                className="btn"
+                onClick={() => {
+                  setShowMenu(false);
+                  setShowIntro(true);
+                }}
+              >
+                ❓ 遊び方を見る
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  setShowMenu(false);
+                  setShowGallery(true);
+                }}
+              >
+                🏛️ キメラ図鑑を見る{chimeraGallery.length > 0 ? `（${chimeraGallery.length}体）` : ''}
+              </button>
+              <p className="muted">
+                戦闘予定: {BATTLE_SEQUENCE.map((_s, i) => (i + 1 === state.battleIndex ? `【${battleSlotLabelForIndex(i + 1)}】` : '・')).join('')}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="prep-hero">
         <ChimeraAvatar defs={eqDefs} />
@@ -114,20 +163,6 @@ export function PrepScreen() {
         )}
 
         {tab === 'synergy' && <SynergyPanel synergies={synergies} critChancePct={critChancePct} />}
-
-        {tab === 'menu' && (
-          <div className="prep-menu-list">
-            <button className="btn" onClick={() => setShowIntro(true)}>
-              ❓ 遊び方を見る
-            </button>
-            <button className="btn" onClick={() => setShowGallery(true)}>
-              🏛️ キメラ図鑑を見る{chimeraGallery.length > 0 ? `（${chimeraGallery.length}体）` : ''}
-            </button>
-            <p className="muted">
-              戦闘予定: {BATTLE_SEQUENCE.map((_s, i) => (i + 1 === state.battleIndex ? `【${battleSlotLabelForIndex(i + 1)}】` : '・')).join('')}
-            </p>
-          </div>
-        )}
       </div>
 
       {selectedDef && selected && (
@@ -179,6 +214,16 @@ export function PrepScreen() {
             <span className="bottom-nav__label">{item.label}</span>
           </button>
         ))}
+        <button
+          className={`bottom-nav__item${unseenCommandCount > 0 ? ' bottom-nav__item--attention' : ''}`}
+          onClick={openCommandEdit}
+        >
+          <span className="bottom-nav__icon">
+            ⚡
+            {unseenCommandCount > 0 && <span className="bottom-nav__badge">{unseenCommandCount > 9 ? '9+' : unseenCommandCount}</span>}
+          </span>
+          <span className="bottom-nav__label">コマンド</span>
+        </button>
       </nav>
     </div>
   );
@@ -208,7 +253,9 @@ function StatusTab({
       </div>
       <div className="prep-status-grid">
         <div className="prep-status-tile">
-          <div className="prep-status-tile__value">{capacityUsed} / {capacityTotal}</div>
+          <div className="prep-status-tile__value">
+            {capacityUsed} / {capacityTotal}
+          </div>
           <div className="prep-status-tile__label">🔗 接続容量</div>
         </div>
         <div className="prep-status-tile">

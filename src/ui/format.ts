@@ -44,16 +44,15 @@ export function tagLabel(t: AbilityTag) {
   return TAG_LABELS[t];
 }
 
-// TEST4: コマンドボタンをアイコンだけでなく色でも区別できるようにする（機能面には影響しない見た目のみの対応）。
-export const COMMAND_COLORS: Record<string, { color: string; glow: string }> = {
-  alpha_strike: { color: '#fbbf24', glow: 'rgba(251, 191, 36, 0.45)' },
-  rampage: { color: '#fb7185', glow: 'rgba(251, 113, 133, 0.45)' },
-  guard: { color: '#38dbf0', glow: 'rgba(56, 219, 240, 0.45)' },
-  flame_breath: { color: '#f97316', glow: 'rgba(249, 115, 22, 0.45)' },
-  default: { color: '#a855f7', glow: 'rgba(168, 85, 247, 0.4)' },
-};
-
 export function formatPct(v: number): string {
   const sign = v > 0 ? '+' : '';
   return `${sign}${v}%`;
+}
+
+// インフレ確認用の大きな数値表記(K/M)。戦闘結果の内訳表示で使用する。
+export function formatBigNumber(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
+  if (abs >= 1_000) return `${(v / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}K`;
+  return `${Math.round(v)}`;
 }

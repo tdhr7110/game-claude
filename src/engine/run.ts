@@ -1,9 +1,9 @@
 import type { EnemyDef, EnemyTier, PartDef, PartInstance, Rarity } from '../data/types';
-import { WEAK_ARM } from '../data/parts';
-import { getDroppableParts, getPartDef, getPartsBySpecies, getSpecialPartDefs } from './adminStore';
+import { DROPPABLE_PARTS, getPartDef, PARTS_BY_SPECIES, SPECIAL_PART_DEFS, WEAK_ARM } from '../data/parts';
 import { buildDeepFinalBoss, buildFinalBoss, buildMiniboss, pickEliteEnemy, pickNormalEnemy, scaleEnemy, TIER1_BATTLE_COUNT } from '../data/enemies';
 import { computeCapacity, previewCostForNewPart, type CapacityInfo } from './capacity';
 import { computeBonusHp } from './modifiers';
+import { COMMAND_BALANCE, DEFAULT_COMMAND_LOADOUT, resolveFamilyBestCommand } from '../data/commandDefs';
 
 export type GamePhase = 'prep' | 'battle' | 'drop' | 'result';
 export type BattleSlotType = 'normal' | 'elite' | 'miniboss' | 'boss';
@@ -38,6 +38,15 @@ export interface RunState {
   resultOutcome: 'victory' | 'defeat' | null;
   instanceSeq: number;
   verboseLog: boolean;
+  // コマンドシステム(TEST5): 4枠ぶんのfamilyId。nullは空き枠。
+  // familyIdで持つことで、部位構成によって進化後の技が自動的に反映される。
+  commandLoadout: (string | null)[];
+  // コマンド獲得・進化演出(TEST6): 一度でも解放・進化を確認したcommandIdの一覧。
+  // 同じコマンドを再度装着し直しても演出が重複発生しないようにするための既知リスト。
+  knownCommandIds: string[];
+  // まだ報酬演出またはコマンド編集画面で確認していないcommandIdの一覧。
+  // 下部ナビゲーション「コマンド」のNEWバッジ表示に使う。
+  unseenCommandIds: string[];
 }
 
 function nextInstanceId(state: RunState): [string, RunState] {
@@ -60,6 +69,9 @@ export function createInitialRunState(): RunState {
     resultOutcome: null,
     instanceSeq: 0,
     verboseLog: false,
+    commandLoadout: [...DEFAULT_COMMAND_LOADOUT],
+    knownCommandIds: [],
+    unseenCommandIds: [],
   };
   for (let i = 0; i < 2; i++) {
     const [id, next] = nextInstanceId(state);
@@ -89,6 +101,17 @@ export interface EquipResult {
   reason?: string;
 }
 
+// 装着部位が変わったことで条件を満たさなくなったコマンド枠を自動的に解除する。
+// （「部位条件を満たさなくなったコマンドは装備解除する」要件のための共通処理）
+function pruneIneligibleCommandSlots(state: RunState): RunState {
+  const defs = equippedDefs(state);
+  const nextLoadout = state.commandLoadout.map((familyId) => {
+    if (!familyId) return null;
+    return resolveFamilyBestCommand(familyId, defs) ? familyId : null;
+  });
+  return { ...state, commandLoadout: nextLoadout };
+}
+
 export function equipPart(state: RunState, instanceId: string): EquipResult {
   const item = state.inventory.find((i) => i.instanceId === instanceId);
   if (!item) return { state, ok: false, reason: '対象の部位がインベントリに見つかりません' };
@@ -103,7 +126,7 @@ export function equipPart(state: RunState, instanceId: string): EquipResult {
     inventory: state.inventory.filter((i) => i.instanceId !== instanceId),
     equipped: [...state.equipped, item],
   };
-  return { state: newState, ok: true };
+  return { state: pruneIneligibleCommandSlots(newState), ok: true };
 }
 
 export function unequipPart(state: RunState, instanceId: string): RunState {
@@ -111,12 +134,60 @@ export function unequipPart(state: RunState, instanceId: string): RunState {
   if (!item) return state;
   const newEquipped = state.equipped.filter((i) => i.instanceId !== instanceId);
   const newMaxHp = Math.max(1, CORE_HP_BASE + computeBonusHp(newEquipped.map((i) => getPartDef(i.defId))));
-  return {
+  const newState: RunState = {
     ...state,
     equipped: newEquipped,
     inventory: [...state.inventory, item],
     coreHp: Math.min(state.coreHp, newMaxHp),
   };
+  return pruneIneligibleCommandSlots(newState);
+}
+
+// --- コマンド装備 ---
+
+export interface SetCommandSlotResult {
+  state: RunState;
+  ok: boolean;
+  reason?: string;
+}
+
+// 指定した枠にfamilyIdを装備する。同じfamilyIdが他の枠に既にあれば、そちらは空にする
+// (「同じコマンドを複数枠へ装備できない」要件を、上書きではなく移動として扱う)。
+// nullを渡すとその枠を空にする。
+export function setCommandSlot(state: RunState, slotIndex: number, familyId: string | null): SetCommandSlotResult {
+  if (slotIndex < 0 || slotIndex >= COMMAND_BALANCE.maxCommandSlots) {
+    return { state, ok: false, reason: '不正な枠番号です' };
+  }
+  if (familyId) {
+    const resolved = resolveFamilyBestCommand(familyId, equippedDefs(state));
+    if (!resolved) return { state, ok: false, reason: '現在の装着部位ではこのコマンドを解放できません' };
+  }
+  const nextLoadout = state.commandLoadout.map((f, i) => {
+    if (i === slotIndex) return familyId;
+    if (familyId && f === familyId) return null; // 他の枠にあれば移動
+    return f;
+  });
+  return { state: { ...state, commandLoadout: nextLoadout }, ok: true };
+}
+
+// 部位獲得後に新しく解放・進化したコマンドを「既知」「未確認」として記録する。
+// (「同じコマンドを二重獲得しない」「NEWバッジ表示」要件のための共通処理)
+export function recordCommandDiscoveries(state: RunState, commandIds: string[]): RunState {
+  if (commandIds.length === 0) return state;
+  const known = new Set(state.knownCommandIds);
+  const unseen = new Set(state.unseenCommandIds);
+  for (const id of commandIds) {
+    known.add(id);
+    unseen.add(id);
+  }
+  return { ...state, knownCommandIds: Array.from(known), unseenCommandIds: Array.from(unseen) };
+}
+
+// 指定したcommandId(省略時は全て)を「確認済み」にし、NEWバッジを解除する。
+export function markCommandsSeen(state: RunState, commandIds?: string[]): RunState {
+  if (!commandIds) return state.unseenCommandIds.length === 0 ? state : { ...state, unseenCommandIds: [] };
+  const remove = new Set(commandIds);
+  return { ...state, unseenCommandIds: state.unseenCommandIds.filter((id) => !remove.has(id)) };
 }
 
 // --- 敵生成 ---
@@ -207,18 +278,10 @@ function rarityForSlot(baseRarity: Rarity, jackpotChance: number): Rarity {
   return baseRarity;
 }
 
-// 同レアリティ内では dropWeight（省略時1）による相対重み付き抽選を行う。
-// 管理画面で個々の部位のドロップ重みを調整すると、ここにそのまま反映される。
 function pickFromPoolByRarity(pool: PartDef[], rarity: Rarity, usedIds: Set<string>): PartDef | null {
   const candidates = pool.filter((p) => p.rarity === rarity && !usedIds.has(p.id));
   if (candidates.length === 0) return null;
-  const total = candidates.reduce((sum, p) => sum + Math.max(0.01, p.dropWeight ?? 1), 0);
-  let roll = Math.random() * total;
-  for (const p of candidates) {
-    roll -= Math.max(0.01, p.dropWeight ?? 1);
-    if (roll <= 0) return p;
-  }
-  return candidates[candidates.length - 1];
+  return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
 export function generateDropCandidates(enemy: EnemyDef, count = 3, isDeepTier = false): PartDef[] {
@@ -227,7 +290,7 @@ export function generateDropCandidates(enemy: EnemyDef, count = 3, isDeepTier = 
   const species = enemy.species === 'chimera' ? null : enemy.species;
   // 種族プール + 特殊部位（無属性のため、どの種族の敵からでもドロップし得る）。
   // 種族プールが無い場合（最終ボス等）は全部位から抽選。
-  const pool = !species || species === 'none' ? getDroppableParts() : [...getPartsBySpecies(species), ...getSpecialPartDefs()];
+  const pool = !species || species === 'none' ? DROPPABLE_PARTS : [...PARTS_BY_SPECIES[species], ...SPECIAL_PART_DEFS];
 
   const result: PartDef[] = [];
   const usedIds = new Set<string>();
@@ -326,6 +389,13 @@ export function debugFullHeal(state: RunState): RunState {
 export function debugGrantPart(state: RunState, defId: string): RunState {
   const [instanceId, next] = nextInstanceId(state);
   return { ...next, inventory: [...next.inventory, { instanceId, defId }] };
+}
+
+// コマンドシステムTEST用: 部位を付与し、容量が足りればその場で装着まで行う(条件確認をすばやく試すため)。
+export function debugGrantAndEquipPart(state: RunState, defId: string): RunState {
+  const [instanceId, next] = nextInstanceId(state);
+  const withInventory: RunState = { ...next, inventory: [...next.inventory, { instanceId, defId }] };
+  return equipPart(withInventory, instanceId).state;
 }
 
 export function toggleVerboseLog(state: RunState): RunState {

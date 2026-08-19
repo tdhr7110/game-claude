@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { GameProvider, useGame } from './ui/GameContext';
 import { PrepScreen } from './ui/components/PrepScreen';
 import { BattleScreen } from './ui/components/BattleScreen';
@@ -6,9 +6,10 @@ import { DropScreen } from './ui/components/DropScreen';
 import { ResultScreen } from './ui/components/ResultScreen';
 import { DebugPanel } from './ui/components/DebugPanel';
 import { IntroModal } from './ui/components/IntroModal';
-import { AdminScreen } from './ui/admin/AdminScreen';
+import { RewardOverlay } from './ui/components/RewardOverlay';
+import { TurnBattleTestScreen } from './ui/turnTest/TurnBattleTestScreen';
 
-function Root() {
+function Root({ onOpenTurnTest }: { onOpenTurnTest: () => void }) {
   const { state } = useGame();
   return (
     <div className="app-root">
@@ -16,29 +17,23 @@ function Root() {
       {state.phase === 'battle' && <BattleScreen />}
       {state.phase === 'drop' && <DropScreen />}
       {state.phase === 'result' && <ResultScreen />}
-      <DebugPanel />
+      <DebugPanel onOpenTurnTest={onOpenTurnTest} />
       <IntroModal />
+      {/* 報酬演出(部位獲得/コマンド獲得/コマンド進化)は画面フェーズに関わらず
+          同じオーバーレイとして最前面に重ねる(報酬フロー中に画面遷移させないため)。 */}
+      <RewardOverlay />
     </div>
   );
 }
 
-// BALANCE管理画面は #admin ハッシュでのみアクセスできる、テスト版限定の開発者用画面。
-// 専用ルーターは導入せず、既存のSPA構成に最も低コストで馴染む方法としてハッシュ判定のみで切り替える。
-function useIsAdminRoute(): boolean {
-  const [isAdmin, setIsAdmin] = useState(() => window.location.hash === '#admin');
-  useEffect(() => {
-    const onHashChange = () => setIsAdmin(window.location.hash === '#admin');
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
-  }, []);
-  return isAdmin;
-}
-
 export default function App() {
-  const isAdmin = useIsAdminRoute();
+  // コマンドバトルTESTは既存のラン進行(GameProvider/RunState)を一切変更しない
+  // 独立したオーバーレイ画面として重ねて表示する（既存のオートバトルは裏で維持されたまま）。
+  const [showTurnTest, setShowTurnTest] = useState(false);
   return (
     <GameProvider>
-      {isAdmin ? <AdminScreen /> : <Root />}
+      <Root onOpenTurnTest={() => setShowTurnTest(true)} />
+      {showTurnTest && <TurnBattleTestScreen onExit={() => setShowTurnTest(false)} />}
     </GameProvider>
   );
 }

@@ -1,5 +1,5 @@
 import type { PartDef, PartType, Species, SynergyTier } from '../data/types';
-import { getPartTypeSynergies, getSpeciesSynergies } from './adminStore';
+import { PART_TYPE_SYNERGIES, SPECIES_SYNERGIES } from '../data/synergies';
 
 export interface SynergyGroupState {
   count: number;
@@ -35,15 +35,13 @@ function groupState(count: number, tiers: SynergyTier[]): SynergyGroupState {
 export function computeActiveSynergies(equipped: PartDef[]): ActiveSynergies {
   const typeCounts = computePartTypeCounts(equipped);
   const speciesCounts = computeSpeciesCounts(equipped);
-  const partTypeSynergies = getPartTypeSynergies();
-  const speciesSynergies = getSpeciesSynergies();
 
   const partType = Object.fromEntries(
-    (Object.keys(typeCounts) as PartType[]).map((t) => [t, groupState(typeCounts[t], partTypeSynergies[t])])
+    (Object.keys(typeCounts) as PartType[]).map((t) => [t, groupState(typeCounts[t], PART_TYPE_SYNERGIES[t])])
   ) as Record<PartType, SynergyGroupState>;
 
   const species = Object.fromEntries(
-    (Object.keys(speciesCounts) as Exclude<Species, 'none'>[]).map((s) => [s, groupState(speciesCounts[s], speciesSynergies[s])])
+    (Object.keys(speciesCounts) as Exclude<Species, 'none'>[]).map((s) => [s, groupState(speciesCounts[s], SPECIES_SYNERGIES[s])])
   ) as Record<Exclude<Species, 'none'>, SynergyGroupState>;
 
   return { partType, species };

@@ -11,7 +11,8 @@ interface PartCardProps {
   onClick?: () => void;
 }
 
-// TEST4: 正式な部位イラスト(def.image)が用意され次第、アイコン絵文字から自動的に切り替わる。
+// 本番版UI(TEST4)のデザインを移植したもの。本番版は将来のイラスト差し替え用に
+// def.image を持つが、TEST5の部位データにはこのフィールドが無いため常にアイコン表示とする。
 export function PartCard({ def, cost, selected, disabled, compact, badge, onClick }: PartCardProps) {
   const effectiveCost = cost ?? def.cost;
   return (
@@ -25,13 +26,9 @@ export function PartCard({ def, cost, selected, disabled, compact, badge, onClic
       <span className="part-card__rarity-tag" style={{ color: RARITY_COLORS[def.rarity] }}>
         {rarityLabel(def.rarity)}
       </span>
-      {def.image ? (
-        <img className="part-card__image" src={def.image} alt={def.name} />
-      ) : (
-        <div className="part-card__icon" style={{ color: def.color }}>
-          {def.icon}
-        </div>
-      )}
+      <div className="part-card__icon" style={{ color: def.color }}>
+        {def.icon}
+      </div>
       <div className="part-card__name">{def.name}</div>
       <div className="part-card__meta">
         <span className="chip">

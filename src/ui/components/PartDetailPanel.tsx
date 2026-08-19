@@ -8,22 +8,20 @@ interface PartDetailPanelProps {
   def: PartDef;
   cost?: number;
   compareWith?: PartDef[]; // 同種の現装着パーツとの比較用
-  synergyDelta?: SynergyDeltaRow[]; // TEST4: この部位を装着した場合のシナジー変化プレビュー
-  actions?: ReactNode; // TEST4: 「すぐ装着する」等のアクションボタン群
+  synergyDelta?: SynergyDeltaRow[]; // この部位を装着した場合のシナジー変化プレビュー
+  actions?: ReactNode; // 「すぐ装着する」等のアクションボタン群
 }
 
+// 本番版UI(TEST4)のデザインを移植したもの。本番版のdef.imageはTEST5の部位データに
+// 存在しないため常にアイコン表示とする。
 export function PartDetailPanel({ def, cost, compareWith, synergyDelta, actions }: PartDetailPanelProps) {
   const effectiveCost = cost ?? def.cost;
   return (
     <div className={`detail-panel part-card--rarity-${def.rarity}`} style={{ animation: 'none' }}>
       <div className="detail-panel__header">
-        {def.image ? (
-          <img className="detail-panel__image" src={def.image} alt={def.name} />
-        ) : (
-          <span className="detail-panel__icon" style={{ color: def.color }}>
-            {def.icon}
-          </span>
-        )}
+        <span className="detail-panel__icon" style={{ color: def.color }}>
+          {def.icon}
+        </span>
         <div>
           <div className="detail-panel__name">{def.name}</div>
           <div className="detail-panel__sub">

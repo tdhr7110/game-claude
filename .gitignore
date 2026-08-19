@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# npm run export-data で再生成できるゲームデータExcel(ビルド成果物のためコミットしない)
+CHIMERA_BUTCHER_GameData.xlsx
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
