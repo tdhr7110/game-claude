@@ -1,6 +1,6 @@
 import type { RunState, GamePhase } from '../engine/run';
 import type { EnemyDef, EnemyGimmickEffectDef, EnemyMove, GimmickKind, PartInstance, Species } from '../data/types';
-import { PARTS_BY_ID } from '../data/parts';
+import { PARTS_BY_ID, isKnownPartId } from '../data/parts';
 import { RUN_SAVE_KEY } from './storageKeys';
 import { safeGetItem, safeRemoveItem, safeSetItem } from './storageAvailability';
 
@@ -40,7 +40,9 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 function isPartInstance(v: unknown): v is PartInstance {
   if (!isPlainObject(v)) return false;
   if (typeof v.instanceId !== 'string' || typeof v.defId !== 'string') return false;
-  return Object.prototype.hasOwnProperty.call(PARTS_BY_ID, v.defId);
+  // 通常部位に加え、融合(TEST16)で生成された部位のdefIdも有効な保存データとして扱う
+  // (PARTS_BY_IDだけを見ると融合部位を「未知の部位」として誤って無効化してしまうため)。
+  return isKnownPartId(v.defId);
 }
 
 function isPartInstanceArray(v: unknown): v is PartInstance[] {
@@ -142,7 +144,7 @@ function isRunState(v: unknown): v is RunState {
   // enemySelectフェーズ中にリロードしても候補が再抽選されず、選んだ敵も
   // 正しく復元されることを保証する。
   if (!Array.isArray(v.enemyCandidates) || !v.enemyCandidates.every(isEnemyDef)) return false;
-  if (!Array.isArray(v.dropCandidates) || !v.dropCandidates.every((d) => isPlainObject(d) && typeof d.id === 'string' && Object.prototype.hasOwnProperty.call(PARTS_BY_ID, d.id))) {
+  if (!Array.isArray(v.dropCandidates) || !v.dropCandidates.every((d) => isPlainObject(d) && typeof d.id === 'string' && isKnownPartId(d.id))) {
     return false;
   }
   if (v.lastNormalEnemyId !== null && typeof v.lastNormalEnemyId !== 'string') return false;

@@ -692,6 +692,13 @@ export function registerAdditionalParts(defs: PartDef[]): void {
   for (const def of defs) EXTRA_PARTS_BY_ID[def.id] = def;
 }
 
+// 通常部位・融合結果部位のどちらのidも受け入れる存在チェック。EXTRA_PARTS_BY_ID自体は
+// モジュール非公開のため、PARTS_BY_IDへの直接hasOwnPropertyチェックでは融合部位を
+// 「未知の部位」として弾いてしまう箇所(セーブデータ検証など)はこちらを使う。
+export function isKnownPartId(id: string): boolean {
+  return Object.prototype.hasOwnProperty.call(PARTS_BY_ID, id) || Object.prototype.hasOwnProperty.call(EXTRA_PARTS_BY_ID, id);
+}
+
 export function getPartDef(id: string): PartDef {
   const def = PARTS_BY_ID[id] ?? EXTRA_PARTS_BY_ID[id];
   if (!def) throw new Error(`Unknown part id: ${id}`);
