@@ -2,8 +2,8 @@
 // ゲームデータExcel出力スクリプト（本番ビルドには含まれません）。
 //
 // 【最重要方針】このスクリプトは「唯一の正」であるゲームデータ
-// (src/data/*.ts, src/ui/commandFormat.ts 等)を実行時にimportして読み取るだけで、
-// Excel用の値を手入力・二重管理することは禁止。
+// (src/data/*.ts, src/engine/run.ts, src/ui/commandFormat.ts 等)を実行時にimportして
+// 読み取るだけで、Excel用の値を手入力・二重管理することは禁止。
 // 「コード上の生データ→人間が読める説明文」への変換ロジック（下記の
 // EFFECT_META・PartEffect→文言マッピング等）は必要だが、数値そのものは
 // 必ず実データ(def.effects, cmd.effectValues 等)から読み取ること。
@@ -21,12 +21,14 @@
 
 import ExcelJS from 'exceljs';
 import { execSync } from 'node:child_process';
-import { ALL_PARTS, DROPPABLE_PARTS, WEAK_ARM } from '../src/data/parts';
+import { ALL_PARTS, DROPPABLE_PARTS, PARTS_BY_SPECIES, SPECIAL_PART_DEFS, WEAK_ARM } from '../src/data/parts';
 import {
   PART_TYPE_LABELS,
   SPECIES_LABELS,
   RARITY_LABELS,
   TAG_LABELS,
+  type EnemyDef,
+  type EnemyTier,
   type PartDef,
   type PartEffect,
   type PartType,
@@ -35,9 +37,17 @@ import {
 } from '../src/data/types';
 import { PART_TYPE_SYNERGIES, SPECIES_SYNERGIES } from '../src/data/synergies';
 import { ALL_COMMANDS, COMMAND_BALANCE, COMMAND_CATEGORY_LABELS, type CommandDef } from '../src/data/commandDefs';
+import { ALL_NORMAL_ENEMIES, ALL_ELITE_ENEMIES, buildFinalBoss, buildDeepFinalBoss, TIER1_BATTLE_COUNT } from '../src/data/enemies';
+import {
+  BATTLE_SEQUENCE,
+  TOTAL_BATTLES,
+  BASE_RARITY_BY_TIER,
+  BASE_RARITY_BY_TIER_DEEP,
+  JACKPOT_CHANCE,
+  JACKPOT_CHANCE_DEEP,
+} from '../src/engine/run';
 import { describeCommandCondition, commandEffectSummary, EFFECT_VALUE_FIELD_LABELS } from '../src/ui/commandFormat';
 
-const ENVIRONMENT = 'TEST5';
 const OUTPUT_FILE = 'CHIMERA_BUTCHER_GameData.xlsx';
 
 function gitInfo(): { branch: string; commit: string } {
@@ -314,12 +324,19 @@ function formatEffectValues(effect: PartEffect): string {
     .join(', ');
 }
 
-function assertKnownEffectKinds() {
+function assertKnownEffectKinds(enemies: EnemyDef[]) {
   const known = new Set(Object.keys(EFFECT_META));
   const missing = new Set<string>();
   for (const part of ALL_PARTS) {
     for (const effect of part.effects) {
       if (!known.has(effect.kind)) missing.add(effect.kind);
+    }
+  }
+  for (const enemy of enemies) {
+    for (const move of enemy.moves) {
+      for (const effect of move.effects) {
+        if (!known.has(effect.kind)) missing.add(effect.kind);
+      }
     }
   }
   if (missing.size > 0) {
@@ -341,7 +358,7 @@ function partRemark(def: PartDef): string {
   return remarks.join(' / ');
 }
 
-function buildPartsRows() {
+function buildPartsRows(branch: string) {
   const sorted = [...ALL_PARTS].sort((a, b) => {
     const rarityOrder: Record<Rarity, number> = { common: 0, uncommon: 1, rare: 2 };
     if (a.species !== b.species) return a.species.localeCompare(b.species);
@@ -378,7 +395,9 @@ function buildPartsRows() {
       対象: [...new Set(metas.map((m) => m.target))].join(' / ') || '',
       シナジー: synergyDescriptions.join(' / '),
       'Custom Handler名': [...new Set(metas.map((m) => m.handler))].join(' / '),
-      使用環境: ENVIRONMENT,
+      アイコン: def.icon,
+      カラー: def.color,
+      使用ブランチ: branch,
       '有効/無効': '有効',
       備考: partRemark(def),
     };
@@ -417,14 +436,28 @@ function pickFields(cmd: CommandDef, keys: string[]): string {
     .join(' / ');
 }
 
-function buildCommandsRows() {
+function buildCommandsRows(branch: string) {
   const sorted = [...ALL_COMMANDS].sort((a, b) => {
     if (a.category !== b.category) return a.category.localeCompare(b.category);
     if (a.familyId !== b.familyId) return a.familyId.localeCompare(b.familyId);
     return a.priority - b.priority;
   });
 
-  const powerKeys = ['damage', 'fallbackDamage', 'fixedDamage', 'damagePerPoison', 'powerPct', 'hits', 'finisherDamage', 'bonusDamage'];
+  const powerKeys = [
+    'damage',
+    'fallbackDamage',
+    'fixedDamage',
+    'damagePerPoison',
+    'powerPct',
+    'hits',
+    'finisherDamage',
+    'bonusDamage',
+    'burnDps',
+    'bonusIfBurningPct',
+    'defenseIgnorePct',
+    'maxConsume',
+    'consumeFraction',
+  ];
   const healKeys = ['healPctOfMax', 'instantPct', 'tickPctPerSec', 'shieldPct', 'lifestealPct'];
   const buffKeys = ['reductionPct', 'reflectPct', 'attackSpeedPct', 'attackSpeedBuffPct', 'critChancePctAdd', 'critMultAdd', 'poisonPerArmHit'];
   const debuffKeys = ['vulnerabilityPct', 'bossDurationMultPct'];
@@ -469,7 +502,9 @@ function buildCommandsRows() {
       関連部位: relatedParts.join('、') || '-',
       関連タグ: (cmd.requiredTags ?? []).map((t) => TAG_LABELS[t]).join('、') || '-',
       'Custom Handler': `battle.ts: executeCommandEffect() 内 '${cmd.effectId}' ケース`,
-      使用環境: ENVIRONMENT,
+      アイコン: cmd.icon,
+      カラー: cmd.color,
+      使用ブランチ: branch,
       '有効/無効': '有効',
       備考: cmd.evolvedFrom ? `${cmd.evolvedFrom} から進化（familyId: ${cmd.familyId}）` : `familyId: ${cmd.familyId}`,
     };
@@ -585,6 +620,122 @@ function buildSynergiesRows() {
 }
 
 // ------------------------------------------------------------
+// Enemies シート
+// ------------------------------------------------------------
+
+const ENEMY_TIER_LABELS: Record<EnemyTier, string> = {
+  normal: '通常',
+  elite: '強敵（エリート）',
+  miniboss: '中ボス',
+  boss: 'ボス',
+};
+
+// EnemyDef.species は Species の他に 'chimera'（複数種族の混成、最終ボス用）を取り得る。
+const ENEMY_SPECIES_LABELS: Record<EnemyDef['species'], string> = {
+  ...SPECIES_LABELS,
+  chimera: 'キメラ（混成）',
+};
+
+// BATTLE_SEQUENCE(実際の戦闘進行データ)から、tierごとに何戦目に登場し得るかを逆引きする。
+function battleIndexesForTier(tier: EnemyTier): number[] {
+  return BATTLE_SEQUENCE.map((slot, i) => (slot === tier ? i + 1 : null)).filter((v): v is number => v !== null);
+}
+
+function enemyUsageContext(def: EnemyDef): string {
+  if (def.id === buildFinalBoss().id) {
+    return `第1階層ボスとして${TIER1_BATTLE_COUNT}戦目に登場（buildFinalBoss()）。${TOTAL_BATTLES}戦目のみ覚醒版(final_chimera_awakened)に差し替え。`;
+  }
+  if (def.id === buildDeepFinalBoss().id) {
+    return `第2階層/真の最終ボスとして${TOTAL_BATTLES}戦目に登場（buildDeepFinalBoss()。buildFinalBoss()を強化した派生）。`;
+  }
+  const indexes = battleIndexesForTier(def.tier).join('、');
+  switch (def.tier) {
+    case 'normal':
+      return `通常枠（${indexes}戦目）に pickNormalEnemy() でランダム抽選（scaleEnemy()で戦闘番号に応じ強化）。`;
+    case 'elite':
+      return `強敵枠（${indexes}戦目）に pickEliteEnemy() でランダム抽選。中ボス(miniboss)のベース素体としても使用。`;
+    case 'miniboss':
+      return `中ボス枠（${indexes}戦目）は強敵素体を buildMiniboss() で強化生成するため、固定の中ボス専用個体は存在しない。`;
+    case 'boss':
+      return `ボス枠（${indexes}戦目）。`;
+  }
+}
+
+function enemyMoveSummary(move: EnemyDef['moves'][number]): string {
+  const tagText = move.tags.length > 0 ? `［${move.tags.map((t) => TAG_LABELS[t]).join('・')}］` : '';
+  return `${move.icon}${move.name}${tagText}: 攻撃力${move.attack} / ${move.interval === 0 ? 'パッシブ' : `間隔${move.interval}秒`}`;
+}
+
+function enemyStatusEffectSummary(def: EnemyDef): string {
+  const lines: string[] = [];
+  for (const move of def.moves) {
+    for (const effect of move.effects) {
+      if (effect.kind === 'apply_poison') lines.push(`${move.name}: 毒+${effect.amount}`);
+      else if (effect.kind === 'apply_burn') lines.push(`${move.name}: 炎上(${effect.dps}dps × ${effect.duration}秒)`);
+    }
+  }
+  return lines.join(' / ') || '（なし）';
+}
+
+function enemyGimmickSummary(def: EnemyDef): string {
+  const lines: string[] = [];
+  for (const move of def.moves) {
+    for (const effect of move.effects) {
+      if (effect.kind !== 'apply_poison' && effect.kind !== 'apply_burn') {
+        const meta = EFFECT_META[effect.kind];
+        lines.push(`${move.name}: ${meta.label}（${formatEffectValues(effect)}）`);
+      }
+    }
+  }
+  return lines.join(' / ') || '（なし）';
+}
+
+function enemyDropInfo(def: EnemyDef): string {
+  const baseRarity = RARITY_LABELS[BASE_RARITY_BY_TIER[def.tier]];
+  const deepRarity = RARITY_LABELS[BASE_RARITY_BY_TIER_DEEP[def.tier]];
+  const isPooledBySpecies = def.species !== 'chimera' && def.species !== 'none';
+  const poolText = isPooledBySpecies
+    ? `${SPECIES_LABELS[def.species as Exclude<Species, 'none'>]}種族部位(${PARTS_BY_SPECIES[def.species as 'insect' | 'golem' | 'dragon'].length}件) + 特殊部位(${SPECIAL_PART_DEFS.length}件)`
+    : `全ドロップ対象部位(${DROPPABLE_PARTS.length}件)から抽選`;
+  return (
+    `基準レアリティ: 第1階層=${baseRarity} / 第2階層=${deepRarity}` +
+    `（jackpot確率 通常${Math.round(JACKPOT_CHANCE * 100)}% / 深層${Math.round(JACKPOT_CHANCE_DEEP * 100)}%で1段階上昇）。` +
+    `抽選プール: ${poolText}（generateDropCandidates()）`
+  );
+}
+
+function buildEnemiesRows() {
+  const finalBoss = buildFinalBoss();
+  const deepFinalBoss = buildDeepFinalBoss();
+  const enemies: EnemyDef[] = [...ALL_NORMAL_ENEMIES, ...ALL_ELITE_ENEMIES, finalBoss, deepFinalBoss];
+
+  return enemies.map((def) => ({
+    'Enemy ID': def.id,
+    敵名: def.name,
+    種族: ENEMY_SPECIES_LABELS[def.species],
+    'Tier/敵区分': ENEMY_TIER_LABELS[def.tier],
+    HP: def.hp,
+    攻撃関連値: def.moves.map(enemyMoveSummary).join(' / '),
+    防御: def.defense,
+    被ダメージ軽減率: `${def.damageReductionPct}%`,
+    回避率: `${def.evasionPct}%`,
+    状態異常関連: enemyStatusEffectSummary(def),
+    '特殊能力/ギミック': enemyGimmickSummary(def),
+    ドロップ関連情報: enemyDropInfo(def),
+    使用環境: enemyUsageContext(def),
+    アイコン: def.icon,
+    カラー: def.color,
+    説明文: def.description,
+    備考:
+      def.tier === 'normal' || def.tier === 'elite'
+        ? 'scaleEnemy()により戦闘番号(1〜8戦/9〜16戦)に応じてHP・攻撃力等が動的に成長する（本シートの数値は基礎値）'
+        : def.id === deepFinalBoss.id
+          ? 'buildFinalBoss()の数値を固定倍率で強化した個体（動的スケーリングなし）'
+          : '固定の基礎個体（動的スケーリングなし）',
+  }));
+}
+
+// ------------------------------------------------------------
 // Excel組み立て
 // ------------------------------------------------------------
 async function addTableSheet<T extends Record<string, unknown>>(
@@ -647,7 +798,9 @@ async function addTableSheet<T extends Record<string, unknown>>(
 }
 
 async function main() {
-  assertKnownEffectKinds();
+  const enemiesRows = buildEnemiesRows();
+  const allEnemyDefs: EnemyDef[] = [...ALL_NORMAL_ENEMIES, ...ALL_ELITE_ENEMIES, buildFinalBoss(), buildDeepFinalBoss()];
+  assertKnownEffectKinds(allEnemyDefs);
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'scripts/exportGameData.ts';
@@ -655,20 +808,32 @@ async function main() {
 
   const { branch, commit } = gitInfo();
 
+  const partsRows = buildPartsRows(branch);
+  const commandsRows = buildCommandsRows(branch);
+  const synergiesRows = buildSynergiesRows();
+
   // --- Info シート ---
   const info = workbook.addWorksheet('Info');
   info.columns = [{ width: 26 }, { width: 70 }];
   const infoRows: [string, string][] = [
     ['タイトル', 'CHIMERA BUTCHER ゲームデータ一覧'],
-    ['Environment', ENVIRONMENT],
     ['生成日時', new Date().toISOString()],
     ['Gitブランチ', branch],
     ['Gitコミット', commit],
-    ['再生成方法', 'npm run export-data （scripts/exportGameData.ts を実行）'],
-    ['データ元ファイル', 'src/data/parts.ts, src/data/types.ts, src/data/synergies.ts, src/data/commandDefs.ts, src/ui/commandFormat.ts'],
-    ['部位総数', String(ALL_PARTS.length)],
-    ['コマンド総数', String(ALL_COMMANDS.length)],
-    ['注意', 'このExcelはTEST5ブランチのデータのみを反映しています。本番版・TEST1〜TEST4とは部位/コマンド/数値が異なる場合があります。'],
+    [
+      'データ取得元',
+      'src/data/parts.ts, src/data/types.ts, src/data/synergies.ts, src/data/commandDefs.ts, src/data/enemies.ts, src/engine/run.ts, src/ui/commandFormat.ts',
+    ],
+    ['部位総数', String(partsRows.length)],
+    ['コマンド総数', String(commandsRows.length)],
+    ['敵総数', String(enemiesRows.length)],
+    ['シナジー総数', String(synergiesRows.length)],
+    ['再生成コマンド', 'npm run export-data （scripts/exportGameData.ts を実行）'],
+    [
+      '注意',
+      'このExcelはゲームコード(src/data/*.ts 等)から自動生成した一覧です。ゲームコードが唯一の正(Single Source of Truth)であり、' +
+        'このExcelへの直接編集はゲームには反映されません。データを変更する場合は必ずゲームコード側を編集し、本コマンドで再生成してください。',
+    ],
     ['注意2', '代謝ゲージ関連の基礎値(COMMAND_BALANCE)は下記の通りです:'],
     ...Object.entries(COMMAND_BALANCE).map(([k, v]) => [`  COMMAND_BALANCE.${k}`, String(v)] as [string, string]),
   ];
@@ -680,7 +845,7 @@ async function main() {
   });
 
   // --- Parts ---
-  await addTableSheet(workbook, 'Parts', buildPartsRows(), {
+  await addTableSheet(workbook, 'Parts', partsRows, {
     wrapColumns: ['通常能力', '特殊能力', 'Trigger', 'Effect', 'Effect数値', '発動条件', 'シナジー', 'Custom Handler名'],
     colorColumn: 'レアリティ',
     colorMap: { コモン: 'FFD1D5DB', アンコモン: 'FF7DD3FC', レア: 'FFE9D5FF' },
@@ -688,7 +853,7 @@ async function main() {
   });
 
   // --- Commands ---
-  await addTableSheet(workbook, 'Commands', buildCommandsRows(), {
+  await addTableSheet(workbook, 'Commands', commandsRows, {
     wrapColumns: ['説明', '使用可能になる条件', '発動条件', '威力', '回復量', 'バフ内容', 'デバフ内容', '効果', '関連部位', '備考'],
     colorColumn: 'カテゴリ',
     colorMap: { 攻撃: 'FFFCA5A5', 呪文: 'FF7DD3FC', バフ: 'FFA7F3D0', デバフ: 'FFE9D5FF', 回復: 'FF6EE7B7', 奥義: 'FFFDE68A' },
@@ -704,14 +869,33 @@ async function main() {
   });
 
   // --- Synergies ---
-  await addTableSheet(workbook, 'Synergies', buildSynergiesRows(), {
+  await addTableSheet(workbook, 'Synergies', synergiesRows, {
     wrapColumns: ['効果', '強化される部位'],
     widthOverrides: { シナジーID: 20, 名前: 18, 効果: 34 },
   });
 
+  // --- Enemies ---
+  await addTableSheet(workbook, 'Enemies', enemiesRows, {
+    wrapColumns: ['攻撃関連値', '状態異常関連', '特殊能力/ギミック', 'ドロップ関連情報', '使用環境', '説明文', '備考'],
+    colorColumn: 'Tier/敵区分',
+    colorMap: { 通常: 'FFD1D5DB', '強敵（エリート）': 'FF7DD3FC', 中ボス: 'FFFDE68A', ボス: 'FFFCA5A5' },
+    widthOverrides: {
+      'Enemy ID': 22,
+      敵名: 16,
+      攻撃関連値: 40,
+      状態異常関連: 26,
+      '特殊能力/ギミック': 30,
+      ドロップ関連情報: 40,
+      使用環境: 34,
+      説明文: 26,
+    },
+  });
+
   await workbook.xlsx.writeFile(OUTPUT_FILE);
   console.log(`✅ ${OUTPUT_FILE} を生成しました`);
-  console.log(`   Parts: ${ALL_PARTS.length}件 / Commands: ${ALL_COMMANDS.length}件`);
+  console.log(
+    `   Parts: ${partsRows.length}件 / Commands: ${commandsRows.length}件 / Enemies: ${enemiesRows.length}件 / Synergies: ${synergiesRows.length}件`
+  );
 }
 
 main().catch((err) => {

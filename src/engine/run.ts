@@ -252,7 +252,7 @@ export function battleSlotLabel(state: RunState): string {
 
 const RARITY_ORDER: Rarity[] = ['common', 'uncommon', 'rare'];
 
-const BASE_RARITY_BY_TIER: Record<EnemyTier, Rarity> = {
+export const BASE_RARITY_BY_TIER: Record<EnemyTier, Rarity> = {
   normal: 'common',
   elite: 'uncommon',
   miniboss: 'uncommon',
@@ -260,15 +260,15 @@ const BASE_RARITY_BY_TIER: Record<EnemyTier, Rarity> = {
 };
 
 // 第2階層(9戦目以降)は基準レアリティを1段階引き上げ、「深層へ行くほど明確に強い部位」を表現する。
-const BASE_RARITY_BY_TIER_DEEP: Record<EnemyTier, Rarity> = {
+export const BASE_RARITY_BY_TIER_DEEP: Record<EnemyTier, Rarity> = {
   normal: 'uncommon',
   elite: 'rare',
   miniboss: 'rare',
   boss: 'rare',
 };
 
-const JACKPOT_CHANCE = 0.18; // 通常時、1候補が1段階上のレアリティになる確率
-const JACKPOT_CHANCE_DEEP = 0.25; // 第2階層はやや高め
+export const JACKPOT_CHANCE = 0.18; // 通常時、1候補が1段階上のレアリティになる確率
+export const JACKPOT_CHANCE_DEEP = 0.25; // 第2階層はやや高め
 
 function rarityForSlot(baseRarity: Rarity, jackpotChance: number): Rarity {
   const baseIdx = RARITY_ORDER.indexOf(baseRarity);
