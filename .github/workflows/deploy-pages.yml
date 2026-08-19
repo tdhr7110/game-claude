@@ -149,6 +149,66 @@ jobs:
           mkdir -p ../dist/test6
           cp -r dist/. ../dist/test6/
 
+      # フェーズ10（TEST10: TEST7〜9統合版。敵候補選択・敵固有ギミック・セーブ再開・図鑑・
+      # 戦闘演出/SEを統合）を /test10/ サブパスに同梱する。TEST1〜6・正式版とは完全に独立した
+      # ブランチで、取得・ビルドに失敗しても他のデプロイは継続する。
+      - name: Checkout test10 branch (統合検証用)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: test10/chimera-integrated-next
+          path: test10-branch
+
+      - name: Build test10 branch into /test10/ subpath
+        if: hashFiles('test10-branch/package.json') != ''
+        continue-on-error: true
+        run: |
+          cd test10-branch
+          npm ci
+          npm run build -- --base=/game-claude/test10/
+          mkdir -p ../dist/test10
+          cp -r dist/. ../dist/test10/
+
+      # フェーズ11（TEST11: 同一部位の複数装着に対応した自由合体レイヤー表示検証版）を
+      # /test11/ サブパスに同梱する。TEST1〜10・正式版とは完全に独立したブランチで、
+      # 取得・ビルドに失敗しても他のデプロイは継続する。
+      - name: Checkout test11 branch (自由合体レイヤー表示検証用)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: test11/chimera-free-layer
+          path: test11-branch
+
+      - name: Build test11 branch into /test11/ subpath
+        if: hashFiles('test11-branch/package.json') != ''
+        continue-on-error: true
+        run: |
+          cd test11-branch
+          npm ci
+          npm run build -- --base=/game-claude/test11/
+          mkdir -p ../dist/test11
+          cp -r dist/. ../dist/test11/
+
+      # フェーズ17（TEST17: TEST11の既存機能+自由合体レイヤー表示 に、TEST12のローカル計測機能と
+      # TEST16の任意部位融合システムを統合した検証版）を /test17/ サブパスに同梱する。
+      # TEST1〜11・正式版とは完全に独立したブランチで、取得・ビルドに失敗しても他のデプロイは継続する。
+      - name: Checkout test17 branch (TEST11+TEST12計測+TEST16融合 統合検証用)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: test17/chimera-integrated-latest
+          path: test17-branch
+
+      - name: Build test17 branch into /test17/ subpath
+        if: hashFiles('test17-branch/package.json') != ''
+        continue-on-error: true
+        run: |
+          cd test17-branch
+          npm ci
+          npm run build -- --base=/game-claude/test17/
+          mkdir -p ../dist/test17
+          cp -r dist/. ../dist/test17/
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
