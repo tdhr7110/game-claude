@@ -169,6 +169,26 @@ jobs:
           mkdir -p ../dist/test10
           cp -r dist/. ../dist/test10/
 
+      # フェーズ11（TEST11: 同一部位の複数装着に対応した自由合体レイヤー表示検証版）を
+      # /test11/ サブパスに同梱する。TEST1〜10・正式版とは完全に独立したブランチで、
+      # 取得・ビルドに失敗しても他のデプロイは継続する。
+      - name: Checkout test11 branch (自由合体レイヤー表示検証用)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: test11/chimera-free-layer
+          path: test11-branch
+
+      - name: Build test11 branch into /test11/ subpath
+        if: hashFiles('test11-branch/package.json') != ''
+        continue-on-error: true
+        run: |
+          cd test11-branch
+          npm ci
+          npm run build -- --base=/game-claude/test11/
+          mkdir -p ../dist/test11
+          cp -r dist/. ../dist/test11/
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
