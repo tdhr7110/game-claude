@@ -1769,12 +1769,6 @@ body.debug-open {
   cursor: help;
   color: var(--color-cyan);
 }
-.status-row {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
 .battle-stage__arena {
   position: relative;
   display: flex;

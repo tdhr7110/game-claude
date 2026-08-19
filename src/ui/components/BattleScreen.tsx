@@ -34,27 +34,27 @@ function HpBar({ hp, maxHp, color, shield }: { hp: number; maxHp: number; color:
   );
 }
 
-function StatusRow({ c }: { c: CombatantSnapshot }) {
-  if (c.poison === 0 && !c.burn) return null;
+// 毒・炎上・バフデバフの表示。名前/HP行の下に積み上げると出たり消えたりするたびに
+// レイアウトが上下してコマンドボタンの位置がズレるため、フィギュア(アイコン)の
+// 横へ絶対配置のバッジとして重ねる。行の高さには影響しない。
+function FigureStatusBadges({ c }: { c: CombatantSnapshot }) {
+  if (c.poison === 0 && !c.burn && c.activeEffects.length === 0) return null;
   return (
-    <div className="status-row">
-      {c.poison > 0 && <span className="status-badge status-badge--poison">☠️毒{c.poison}</span>}
-      {c.burn && (
-        <span className="status-badge status-badge--burn">
-          🔥炎上{Math.round(c.burn.dps * 10) / 10}/秒(残{Math.round(c.burn.timeLeft * 10) / 10}s)
+    <div className="figure-status-badges">
+      {c.poison > 0 && (
+        <span className="status-badge status-badge--poison" title={`毒 ${c.poison}`}>
+          ☠️{c.poison}
         </span>
       )}
-    </div>
-  );
-}
-
-function EffectBadges({ effects }: { effects: CombatantSnapshot['activeEffects'] }) {
-  if (effects.length === 0) return null;
-  return (
-    <div className="cmd-effect-badges">
-      {effects.map((e) => (
-        <span key={e.key} className="cmd-effect-badge" title={e.sourceName}>
-          {EFFECT_KIND_ICONS[e.kind] ?? '✨'} {e.sourceName} {e.remaining}s
+      {c.burn && (
+        <span className="status-badge status-badge--burn" title={`炎上 ${Math.round(c.burn.dps * 10) / 10}/秒・残り${Math.round(c.burn.timeLeft * 10) / 10}秒`}>
+          🔥{Math.ceil(c.burn.timeLeft)}s
+        </span>
+      )}
+      {c.activeEffects.map((e) => (
+        <span key={e.key} className="status-badge status-badge--buff" title={`${e.sourceName}・残り${e.remaining}秒`}>
+          {EFFECT_KIND_ICONS[e.kind] ?? '✨'}
+          {e.remaining}s
         </span>
       ))}
     </div>
@@ -237,17 +237,18 @@ export function BattleScreen() {
             {enemyDef?.icon} {snapshot.enemy.name} {snapshot.enemy.isDead && <span className="danger-text">（撃破）</span>}
           </div>
           <HpBar hp={snapshot.enemy.hp} maxHp={snapshot.enemy.maxHp} color="#f87171" shield={snapshot.enemy.shieldValue} />
-          <StatusRow c={snapshot.enemy} />
-          <EffectBadges effects={snapshot.enemy.activeEffects} />
         </div>
 
         <div className="battle-stage__arena">
           <div className="battle-stage__enemy-figure">
-            <div
-              className="cmd-enemy-figure"
-              style={{ background: `radial-gradient(circle, ${enemyDef?.color ?? '#7c3aed'}33, transparent 70%)` }}
-            >
-              <span style={{ opacity: snapshot.enemy.isDead ? 0.35 : 1 }}>{enemyDef?.icon ?? '👹'}</span>
+            <div className="figure-anchor">
+              <div
+                className="cmd-enemy-figure"
+                style={{ background: `radial-gradient(circle, ${enemyDef?.color ?? '#7c3aed'}33, transparent 70%)` }}
+              >
+                <span style={{ opacity: snapshot.enemy.isDead ? 0.35 : 1 }}>{enemyDef?.icon ?? '👹'}</span>
+              </div>
+              <FigureStatusBadges c={snapshot.enemy} />
             </div>
           </div>
 
@@ -258,7 +259,10 @@ export function BattleScreen() {
           )}
 
           <div className="battle-stage__player-figure">
-            <ChimeraAvatar defs={avatarDefs} size="sm" />
+            <div className="figure-anchor">
+              <ChimeraAvatar defs={avatarDefs} size="sm" />
+              <FigureStatusBadges c={snapshot.player} />
+            </div>
           </div>
 
           {snapshot.status !== 'ongoing' && (
@@ -279,8 +283,6 @@ export function BattleScreen() {
             🧬 {snapshot.player.name} {snapshot.player.isDead && <span className="danger-text">（機能停止）</span>}
           </div>
           <HpBar hp={snapshot.player.hp} maxHp={snapshot.player.maxHp} color="#4ade80" shield={snapshot.player.shieldValue} />
-          <StatusRow c={snapshot.player} />
-          <EffectBadges effects={snapshot.player.activeEffects} />
         </div>
       </div>
 

@@ -175,20 +175,34 @@
   border-color: var(--color-yellow);
 }
 
-/* --- バフ・デバフ表示 --- */
-.cmd-effect-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: 2px 0;
+/* --- 毒・炎上・バフデバフ表示: フィギュア(アイコン)の横に絶対配置する。
+   出たり消えたりしてもドキュメントフローに影響しないため、コマンドボタンの
+   位置が上下にズレない。 --- */
+.figure-anchor {
+  position: relative;
+  display: inline-flex;
 }
-.cmd-effect-badge {
+.figure-status-badges {
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  transform: translateY(-50%);
+  margin-left: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+  pointer-events: none;
+  z-index: 4;
+}
+.figure-status-badges .status-badge {
   font-size: 0.68em;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid var(--color-border-soft);
-  border-radius: var(--radius-pill);
-  padding: 1px 8px;
+  padding: 1px 7px;
   white-space: nowrap;
+}
+.status-badge--buff {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--color-border-soft);
 }
 
 /* --- 戦闘画面: 敵の簡易ビジュアル(本番版のBattleFigureの代わり。TEST5は戦闘イベント
