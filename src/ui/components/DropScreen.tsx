@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../GameContext';
-import { acceptDrop, equippedDefs } from '../../engine/run';
+import { acceptDrop, equippedDefs, tierOfCurrentBattle } from '../../engine/run';
 import { previewCostForNewPart } from '../../engine/capacity';
 import { getCapacityInfo } from '../../engine/run';
 import { PartCard } from './PartCard';
@@ -9,6 +9,7 @@ import { computeSynergyDelta } from '../synergyPreview';
 import { detectCommandChanges } from '../../engine/commandRewards';
 import { buildCommandRewardCard, buildPartAcquiredCard } from '../rewardCardBuilders';
 import { getPartDef } from '../../data/parts';
+import { recordPartChoice } from '../../metrics/metricsRecorder';
 
 export function DropScreen() {
   const { state, dispatch, pushRewardCards } = useGame();
@@ -31,11 +32,17 @@ export function DropScreen() {
     );
 
     const cards = [buildPartAcquiredCard(getPartDef(defId)), ...changes.map((c) => buildCommandRewardCard(c, after))];
+    recordPartChoice(state.battleIndex, tierOfCurrentBattle(state), preview.equipped ? 'equip' : 'store', defId);
     dispatch({ type: 'ACCEPT_DROP', defId, wantEquip });
     if (changes.length > 0) {
       dispatch({ type: 'RECORD_COMMAND_DISCOVERIES', commandIds: changes.map((c) => c.to.commandId) });
     }
     pushRewardCards(cards);
+  }
+
+  function handleSkip() {
+    recordPartChoice(state.battleIndex, tierOfCurrentBattle(state), 'skip', null);
+    dispatch({ type: 'SKIP_DROP' });
   }
 
   const hasCandidates = state.dropCandidates.length > 0;
@@ -96,7 +103,7 @@ export function DropScreen() {
                 <button className="btn btn--block" onClick={() => handleAccept(selectedDef.id, false)}>
                   インベントリに保管する
                 </button>
-                <button className="btn btn--ghost btn--block" onClick={() => dispatch({ type: 'SKIP_DROP' })}>
+                <button className="btn btn--ghost btn--block" onClick={handleSkip}>
                   どれも受け取らない
                 </button>
               </div>
@@ -109,7 +116,7 @@ export function DropScreen() {
       )}
 
       {!selectedDef && (
-        <button className="btn btn--ghost" onClick={() => dispatch({ type: 'SKIP_DROP' })}>
+        <button className="btn btn--ghost" onClick={handleSkip}>
           どれも受け取らない
         </button>
       )}

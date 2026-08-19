@@ -11,12 +11,14 @@ import {
   debugGrantPart,
   enterEnemySelect,
   equipPart,
+  equippedDefs,
   finishBattle,
   markCommandsSeen,
   recordCommandDiscoveries,
   resetRun,
   setCommandSlot,
   skipDrop,
+  tierOfCurrentBattle,
   toggleVerboseLog,
   unequipPart,
 } from '../engine/run';
@@ -26,6 +28,8 @@ import type { CodexState } from '../engine/codex';
 import { markPartsDiscovered, recordEnemyDefeat, recordEnemyEncounter } from '../engine/codex';
 import { loadCodexState, saveCodexState } from '../persistence/codexPersistence';
 import { clearRunSave, loadRunState, saveRunState } from '../persistence/runPersistence';
+import { computeActiveSynergies } from '../engine/synergyEngine';
+import { ensureRunStarted, recordEnemyCandidates, recordEnemyChosen, recordPartCandidates, recordReset, recordRunEnd } from '../metrics/metricsRecorder';
 
 export interface NamedChimera {
   id: string;
@@ -199,11 +203,20 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   // 通常のuseState/useRef初期化はコンポーネント初回マウント時の値を採用するため、
   // 「続きから」で復元した瞬間のズレはresumeRun内で明示的に補正する。
   const prevPhaseRef = useRef<RunState['phase']>(state.phase);
+  // バランス計測(TEST12)専用の直前フェーズ記録。上のprevPhaseRef(図鑑用)とは
+  // 目的が異なるため独立させ、既存の図鑑ロジックには一切手を入れない。
+  const metricsPrevPhaseRef = useRef<RunState['phase']>(state.phase);
+  // このセッションで追跡するランが「続きから」なのか「新しいラン」なのかを、
+  // 計測(ensureRunStarted)へ伝えるためのフラグ。起動時に有効な保存があれば
+  // ひとまず'resume'とし、discardResumeAndStartNew/RESETで'new'に確定させる。
+  const runOriginRef = useRef<'resume' | 'new'>(pendingResume === null ? 'new' : 'resume');
 
   const resumeRun = useCallback(() => {
     setPendingResume((current) => {
       if (!current) return current;
       prevPhaseRef.current = current.phase;
+      metricsPrevPhaseRef.current = current.phase;
+      runOriginRef.current = 'resume';
       dispatch({ type: 'LOAD_RUN', state: current });
       return null;
     });
@@ -211,11 +224,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const discardResumeAndStartNew = useCallback(() => {
     clearRunSave();
+    runOriginRef.current = 'new';
     setPendingResume(null);
   }, []);
 
   useEffect(() => {
     if (pendingResume !== null) return; // 選択待ち中は保存済みデータを上書きしない
+    // バランス計測(TEST12): このランの追跡が始まっていなければ開始する(2回目以降は内部で無視される)。
+    ensureRunStarted(runOriginRef.current);
     if (state.phase === 'result') {
       // ラン終了(勝利・敗北)後は途中保存だけを削除する。命名キメラ図鑑は対象外(別ストレージ)。
       clearRunSave();
@@ -224,6 +240,30 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       // 戦闘勝利後・ドロップ選択・次戦移動)でしか変化しないため、このuseEffectは
       // 結果的にチェックポイント保存として機能する。
       saveRunState(state);
+    }
+  }, [state, pendingResume]);
+
+  // --- バランス計測(TEST12): フェーズ遷移に応じたイベント記録 ---
+  // 敵候補提示・敵選択・部位ドロップ候補提示・ラン終了(最終ビルド確定)を、
+  // 図鑑用の効果とは独立に検知する。戦闘結果そのもの(勝敗・戦闘時間・コマンド内訳)と
+  // 戦闘開始時点の装備コマンド(BattleEngineが解決した具体的なcommandId)は
+  // BattleEngineが必要なため、BattleScreen側でrecordBattleStart/recordBattleEndを呼ぶ。
+  useEffect(() => {
+    const prevPhase = metricsPrevPhaseRef.current;
+    metricsPrevPhaseRef.current = state.phase;
+    if (pendingResume !== null) return;
+    if (prevPhase === state.phase) return;
+    const tier = tierOfCurrentBattle(state);
+
+    if (state.phase === 'enemySelect') {
+      recordEnemyCandidates(state.battleIndex, tier, state.enemyCandidates.map((e) => e.id));
+    } else if (prevPhase === 'enemySelect' && state.phase === 'battle' && state.currentEnemy) {
+      recordEnemyChosen(state.battleIndex, tier, state.currentEnemy.id);
+    } else if (prevPhase === 'battle' && state.phase === 'drop') {
+      recordPartCandidates(state.battleIndex, tier, state.dropCandidates.map((d) => d.id));
+    } else if (state.phase === 'result' && state.resultOutcome) {
+      const eqDefs = equippedDefs(state);
+      recordRunEnd(state.resultOutcome, state.battleIndex, eqDefs.map((d) => d.id), computeActiveSynergies(eqDefs));
     }
   }, [state, pendingResume]);
 
@@ -258,10 +298,24 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.phase, state.currentEnemy, state.resultOutcome, pendingResume]);
 
+  // バランス計測(TEST12): ラン完了前(result画面到達前)の自発的なリセットだけを
+  // 「リセット回数」として計測する。result画面からの「新しいランを開始する」は
+  // 既にrecordRunEndで完了扱いになっているため、リセット扱いにはしない。
+  const dispatchWithMetrics = useCallback<React.Dispatch<Action>>(
+    (action) => {
+      if (action.type === 'RESET') {
+        runOriginRef.current = 'new';
+        if (state.phase !== 'result') recordReset();
+      }
+      dispatch(action);
+    },
+    [state.phase]
+  );
+
   const value = useMemo(
     () => ({
       state,
-      dispatch,
+      dispatch: dispatchWithMetrics,
       battleEngineRef,
       equipError,
       setEquipError,
@@ -282,6 +336,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       state,
+      dispatchWithMetrics,
       equipError,
       setEquipError,
       showIntro,

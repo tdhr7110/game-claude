@@ -6,6 +6,7 @@ import { BattleScreen } from './ui/components/BattleScreen';
 import { DropScreen } from './ui/components/DropScreen';
 import { ResultScreen } from './ui/components/ResultScreen';
 import { DebugPanel } from './ui/components/DebugPanel';
+import { BalanceDashboard } from './ui/components/BalanceDashboard';
 import { IntroModal } from './ui/components/IntroModal';
 import { RewardOverlay } from './ui/components/RewardOverlay';
 import { ResumePromptModal } from './ui/components/ResumePromptModal';
@@ -23,6 +24,7 @@ function Root({ onOpenTurnTest }: { onOpenTurnTest: () => void }) {
       {state.phase === 'drop' && <DropScreen />}
       {state.phase === 'result' && <ResultScreen />}
       <DebugPanel onOpenTurnTest={onOpenTurnTest} />
+      <BalanceDashboard />
       <IntroModal />
       {/* 報酬演出(部位獲得/コマンド獲得/コマンド進化)は画面フェーズに関わらず
           同じオーバーレイとして最前面に重ねる(報酬フロー中に画面遷移させないため)。 */}

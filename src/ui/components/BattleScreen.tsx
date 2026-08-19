@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../GameContext';
 import { BattleEngine, type BattleEvent, type BattleSnapshot, type CombatantSnapshot, type CommandSlotSnapshot, type SpeedSetting } from '../../engine/battle';
 import { getPartDef } from '../../data/parts';
-import { CORE_HP_BASE, BASE_DEFENSE, getCapacityInfo, TOTAL_BATTLES } from '../../engine/run';
+import { CORE_HP_BASE, BASE_DEFENSE, getCapacityInfo, TOTAL_BATTLES, tierOfCurrentBattle } from '../../engine/run';
+import { recordBattleEnd, recordBattleStart } from '../../metrics/metricsRecorder';
 import { BattleFigure, dominantSpeciesColor, groupCountByType, figureArmsFromSnapshot } from './BattleFigure';
 import { FloatingNumbers, HitCounter, ToastList, OverkillBanner, type Floater, type Toast } from './BattleEffects';
 import { CapacityBar } from './CapacityBar';
@@ -267,6 +268,8 @@ export function BattleScreen() {
     );
     engine.setSpeed(loadPreferredSpeed());
     battleEngineRef.current = engine;
+    // バランス計測(TEST12): 戦闘開始時点で実際に解決されたコマンド構成を記録する。
+    recordBattleStart(state.battleIndex, tierOfCurrentBattle(state), engine.getEquippedCommandIds());
     setSnapshot(engine.getSnapshot());
     lastTimeRef.current = performance.now();
     floatersRef.current = [];
@@ -425,10 +428,26 @@ export function BattleScreen() {
   }
 
   function handleContinue() {
-    if (!battleEngineRef.current) return;
-    const result = battleEngineRef.current.getStatus();
+    const engine = battleEngineRef.current;
+    if (!engine) return;
+    const result = engine.getStatus();
     if (result === 'ongoing') return;
-    dispatch({ type: 'FINISH_BATTLE', result, finalHp: battleEngineRef.current.getFinalPlayerHp() });
+
+    // バランス計測(TEST12): 戦闘結果の内訳(ResultBreakdownで表示している値と同じ集計)を記録する。
+    // ゲーム進行自体(FINISH_BATTLEのdispatch)には影響させない。
+    const finalSnapshot = engine.getSnapshot();
+    recordBattleEnd(state.battleIndex, tierOfCurrentBattle(state), {
+      outcome: result === 'won' ? 'win' : 'lose',
+      battleTimeSeconds: finalSnapshot.resultStats.timeSeconds,
+      playerHpRemaining: finalSnapshot.player.hp,
+      playerMaxHp: finalSnapshot.player.maxHp,
+      deathCause: engine.getDeathCause(),
+      damage: { auto: finalSnapshot.resultStats.autoDamage, command: finalSnapshot.resultStats.commandDamage, status: finalSnapshot.resultStats.statusDamage },
+      healed: finalSnapshot.resultStats.healed,
+      commandUsage: engine.getCommandBreakdown(),
+    });
+
+    dispatch({ type: 'FINISH_BATTLE', result, finalHp: engine.getFinalPlayerHp() });
   }
 
   function activateCommand(slotIndex: number) {

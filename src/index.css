@@ -1270,6 +1270,112 @@ body.debug-open {
 }
 
 /* ============================================================
+   バランス確認画面(開発者向け・TEST12)
+   デバッグUIと同様、目立たない場所に配置する。
+   ============================================================ */
+.balance-dash-toggle {
+  position: fixed;
+  top: env(safe-area-inset-top, 0px);
+  right: env(safe-area-inset-right, 0px);
+  z-index: 90;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  border-top: none;
+  border-right: none;
+  color: rgba(255, 255, 255, 0.45);
+  border-radius: 0 0 0 var(--radius-sm);
+  padding: 3px 8px;
+  cursor: pointer;
+  font-size: 0.7em;
+  line-height: 1.4;
+  opacity: 0.75;
+}
+.balance-dash-toggle:hover {
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.5);
+  opacity: 1;
+}
+.balance-dash {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  background: #0c0a14;
+  color: var(--color-text, #eee);
+  display: flex;
+  flex-direction: column;
+  font-size: 0.86em;
+}
+.balance-dash__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 10px);
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.25);
+  font-weight: bold;
+}
+.balance-dash__header-actions {
+  display: flex;
+  gap: 8px;
+}
+.balance-dash__body {
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.balance-dash__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.balance-dash__toolbar select {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 4px;
+  margin-left: 6px;
+}
+.balance-dash__warning {
+  background: rgba(250, 204, 21, 0.1);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+.balance-dash__warning ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+.balance-dash__section h3 {
+  margin-bottom: 6px;
+}
+.balance-dash__table-wrap {
+  overflow-x: auto;
+}
+.balance-dash__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95em;
+  min-width: 480px;
+}
+.balance-dash__table th,
+.balance-dash__table td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 5px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+.balance-dash__table th {
+  color: var(--color-text-muted);
+  font-weight: normal;
+}
+.balance-dash__sample {
+  font-size: 0.85em;
+}
+
+/* ============================================================
    結果画面
    ============================================================ */
 .result-screen .part-grid {
@@ -1305,6 +1411,53 @@ body.debug-open {
 .naming-box--done {
   color: var(--color-success);
   font-size: 0.95em;
+}
+
+/* ============================================================
+   ラン終了時アンケート(任意・TEST12)
+   ============================================================ */
+.survey-box {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  margin: 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.survey-box__title {
+  font-weight: bold;
+}
+.survey-box__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.survey-box__row label {
+  min-width: 130px;
+  color: var(--color-text-muted);
+}
+.survey-box__stars,
+.survey-box__row-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.survey-box__input {
+  flex: 1;
+  min-width: 160px;
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  color: var(--color-text);
+}
+.survey-box--done {
+  color: var(--color-success);
+  font-size: 0.95em;
+  text-align: center;
 }
 
 .crit-stat {
