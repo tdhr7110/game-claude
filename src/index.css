@@ -130,6 +130,12 @@ p {
   display: flex;
   flex-direction: column;
 }
+/* 戦闘画面はビューポート内に収め、ページ全体のスクロールを発生させない。
+   代わりに内部(.battle-stage__arena等)が縮小して収まるようにする。 */
+.app-root--battle {
+  height: 100dvh;
+  overflow: hidden;
+}
 
 /* ゲーム画面は常に「縦長スマホ画面」を中心に据える。PCブラウザでは中央寄せの
    縦長カラムとして表示し、横画面レイアウトへは戻さない。 */
@@ -1700,6 +1706,8 @@ body.debug-open {
   flex-direction: column;
   gap: 10px;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 .battle-screen-v2--shake {
   animation: screen-shake 0.26s ease-in-out;
@@ -1738,6 +1746,10 @@ body.debug-open {
   display: flex;
   flex-direction: column;
   flex: 1;
+  /* overflow:hiddenを持つflexアイテムは自動最小サイズが0になる仕様のため、
+     明示的な下限を指定して敵/プレイヤーの表示領域が潰れないようにする
+     (.battle-bottom側をスクロール可能にして、こちら優先で確保する)。 */
+  min-height: clamp(220px, 40dvh, 420px);
   background: linear-gradient(180deg, rgba(168, 85, 247, 0.07), rgba(56, 219, 240, 0.04) 60%, transparent);
   border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-lg);
@@ -1774,7 +1786,9 @@ body.debug-open {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 340px;
+  /* 固定340pxだと縦の短い画面でページ全体がスクロールしてしまうため、
+     ビューポート高に応じて縮む余地を持たせる(下限120px・上限300px)。 */
+  min-height: clamp(120px, 20dvh, 300px);
   flex: 1;
   padding: 14px 0;
 }
@@ -1805,6 +1819,12 @@ body.debug-open {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* コマンドボタン等の常時表示部分は自然な高さのまま保ちたいが、詳細パネルを開いた
+     ときに戦闘ステージ側が潰れないよう、この領域全体を可変にして必要な場合だけ
+     内部スクロールさせる(通常時は中身が収まるため何も起きない)。 */
+  flex-shrink: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 .battle-bottom__capacity {
   padding: 0 2px;

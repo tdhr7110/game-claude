@@ -558,13 +558,16 @@
   margin-bottom: 4px;
 }
 .reward-card__slot-picker {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
   margin-bottom: 8px;
 }
 .reward-card__slot-chip {
   font-size: 0.78em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .reward-card__swap-confirm {
   display: flex;

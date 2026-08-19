@@ -165,7 +165,7 @@ export function RewardOverlay() {
                 <p className="reward-card__swap-hint">どのコマンドと入れ替えますか？</p>
                 <div className="reward-card__slot-picker">
                   {state.commandLoadout.map((familyId, i) => (
-                    <SlotChip key={i} slotIndex={i} familyId={familyId} onPick={() => setSwapTarget(i)} />
+                    <SlotChip key={i} slotIndex={i} familyId={familyId} card={card} onPick={() => setSwapTarget(i)} />
                   ))}
                 </div>
               </>
@@ -199,11 +199,22 @@ function useEquippedCommandLabel(familyId: string | null): string {
   }, [familyId, state]);
 }
 
-function SlotChip({ slotIndex, familyId, onPick }: { slotIndex: number; familyId: string | null; onPick: () => void }) {
+function SlotChip({
+  slotIndex,
+  familyId,
+  card,
+  onPick,
+}: {
+  slotIndex: number;
+  familyId: string | null;
+  card: RewardCard;
+  onPick: () => void;
+}) {
   const label = useEquippedCommandLabel(familyId);
   return (
     <button className="btn btn--small reward-card__slot-chip" onClick={onPick}>
-      枠{slotIndex + 1}: {label}
+      枠{slotIndex + 1}: {label} → {card.icon}
+      {card.name}
     </button>
   );
 }
