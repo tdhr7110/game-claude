@@ -18,16 +18,16 @@ import { FreeLayerTestScreen } from './ui/freeLayer/FreeLayerTestScreen';
 import { STORAGE_NAMESPACE } from './persistence/storageKeys';
 
 // TEST19: CTB(行動順可視化型コマンドバトル)プロトタイプのON/OFF設定。
-// このビルド自体がCTB検証用(TEST19)なので既定はON。ただしTEST18(既存の
-// オートバトル+コマンド)との比較のため、いつでもOFFへ戻せるようにする
-// (要件0: TEST18を壊さない・比較対象として残す)。
+// 本番ブランチへ統合された状態でも、既定では従来通りTEST18の戦闘画面(通常のオートバトル)
+// が表示されるよう既定はOFFにする(要件0: TEST18を壊さない・比較対象として残す)。
+// CTBを試したい場合はデバッグパネルのトグルから明示的にONにする。
 const CTB_MODE_KEY = `${STORAGE_NAMESPACE}:ctb-mode:v1`;
 function loadCtbModePref(): boolean {
   try {
     const raw = localStorage.getItem(CTB_MODE_KEY);
-    return raw === null ? true : raw === '1';
+    return raw === '1';
   } catch {
-    return true;
+    return false;
   }
 }
 function saveCtbModePref(v: boolean) {
