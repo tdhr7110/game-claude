@@ -209,6 +209,28 @@ jobs:
           mkdir -p ../dist/test17
           cp -r dist/. ../dist/test17/
 
+      # フェーズ18（TEST18: TEST17をベースに、タイトル画面追加・タブ切替のスクロール固定・
+      # コマンド編集のタブ統合・戦闘速度の見直し(1x/2xへ簡略化・通常速度を減速)・
+      # 戦闘画面/敵選択画面/報酬演出のUI整理などプレイテストのフィードバックを反映した検証版）を
+      # /test18/ サブパスに同梱する。TEST17までの各検証版・正式版とは完全に独立したブランチで、
+      # 取得・ビルドに失敗しても他のデプロイは継続する。
+      - name: Checkout test18 branch (TEST17フィードバック反映 検証用)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: claude/chimera-butcher-test17-feedback-c4bzfu
+          path: test18-branch
+
+      - name: Build test18 branch into /test18/ subpath
+        if: hashFiles('test18-branch/package.json') != ''
+        continue-on-error: true
+        run: |
+          cd test18-branch
+          npm ci
+          npm run build -- --base=/game-claude/test18/
+          mkdir -p ../dist/test18
+          cp -r dist/. ../dist/test18/
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
