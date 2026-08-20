@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../GameContext';
 import { BattleEngine, type BattleEvent, type BattleSnapshot, type CombatantSnapshot, type CommandSlotSnapshot, type SpeedSetting } from '../../engine/battle';
 import { getPartDef } from '../../data/parts';
+import { getCommandDef } from '../../data/commandDefs';
+import { commandEffectSummaryShort } from '../commandFormat';
 import { CORE_HP_BASE, BASE_DEFENSE, getCapacityInfo, TOTAL_BATTLES, tierOfCurrentBattle } from '../../engine/run';
 import { recordBattleEnd, recordBattleStart } from '../../metrics/metricsRecorder';
 import { dominantSpeciesColor, groupCountByType } from './BattleFigure';
@@ -9,16 +11,15 @@ import { dominantSpeciesColor, groupCountByType } from './BattleFigure';
 import { BattleChimeraFigure } from '../freeLayer/BattleChimeraFigure';
 import { groupPartTypeCounts } from '../freeLayer/freeLayerFromParts';
 import { FloatingNumbers, HitCounter, ToastList, OverkillBanner, type Floater, type Toast } from './BattleEffects';
-import { CapacityBar } from './CapacityBar';
-import { formatBigNumber } from '../format';
 import { playSE, getSESettings, setSEMuted, setSEVolume, subscribeSESettings, initAudioUnlock } from '../../engine/soundManager';
 import { STORAGE_NAMESPACE } from '../../persistence/storageKeys';
 import '../commandSystem.css';
 
-const SPEED_OPTIONS: SpeedSetting[] = [0, 1, 2, 4];
+// TEST18: 速度は通常(1x)/倍速(2x)の2種類のみ(4xは削除)。
+const SPEED_OPTIONS: SpeedSetting[] = [1, 2];
 
 // TEST6由来: 選択した再生速度(倍速)を次の戦闘でも覚えておく。一時停止(0)は「今だけ止めた」操作
-// なので記憶対象に含めず、1x/2x/4xのみ保存する。
+// なので記憶対象に含めず、1x/2xのみ保存する。
 const SPEED_STORAGE_KEY = `${STORAGE_NAMESPACE}:battle-speed:v1`;
 
 function loadPreferredSpeed(): SpeedSetting {
@@ -43,7 +44,7 @@ function savePreferredSpeed(speed: SpeedSetting) {
 // --- 戦闘演出のチューニング値 ---
 const FLOATER_TTL_MS = 1100;
 const TOAST_TTL_MS = 1500;
-const FLOATER_CAP_PER_FRAME = 14; // 1フレームで新規生成する数字の上限(4倍速の多段攻撃対策)
+const FLOATER_CAP_PER_FRAME = 14; // 1フレームで新規生成する数字の上限(多段攻撃対策)
 const FLOATER_MAX_ONSCREEN = 40; // 同時表示数の上限
 const TOAST_MAX_ONSCREEN = 6;
 const BIG_DAMAGE_THRESHOLD = 20;
@@ -51,6 +52,9 @@ const HIT_RESET_GAME_SECONDS = 1.2; // この秒数だけ無被弾が続くとHI
 const SHAKE_MS = 260;
 const FLASH_MS = 260;
 const OVERKILL_MS = 900;
+// TEST18: 攻撃時の軽い移動・被弾時の揺れ(最低限の戦闘演出)の表示時間。
+const ATTACK_FX_MS = 160;
+const HIT_FX_MS = 200;
 
 const EFFECT_KIND_ICONS: Record<string, string> = {
   attack_speed: '💨',
@@ -135,6 +139,10 @@ function CommandButton({ slot, glow, onUse }: { slot: CommandSlotSnapshot | null
   }
   const cdActive = slot.cooldownRemaining > 0;
   const gaugeShort = !slot.affordable && !cdActive;
+  // TEST18: 戦闘中でも「このコマンドが何をするか」が一目で分かるよう、簡略化した効果文を
+  // ボタン内に常時表示する(以前はhoverでしか見えないtitle属性のみで、スマホでは確認できなかった)。
+  const cmdDef = getCommandDef(slot.commandId);
+  const shortDesc = cmdDef ? commandEffectSummaryShort(cmdDef) : slot.description;
   return (
     <button
       className={`cmd-button${slot.usable ? ' cmd-button--usable' : ''}${gaugeShort ? ' cmd-button--nogauge' : ''}${glow ? ' cmd-button--glow' : ''}`}
@@ -147,34 +155,13 @@ function CommandButton({ slot, glow, onUse }: { slot: CommandSlotSnapshot | null
         {slot.icon}
       </span>
       <span className="cmd-button__name">{slot.name}</span>
-      <span className="cmd-button__cost">💧{slot.metabolismCost}</span>
+      <span className="cmd-button__desc">{shortDesc}</span>
+      <span className="cmd-button__cost">
+        💧{slot.metabolismCost}
+        {slot.cooldownSeconds > 0 ? ` ・ ⏱${slot.cooldownSeconds}s` : ''}
+      </span>
       {cdActive && <div className="cmd-button__cd-overlay">{Math.ceil(slot.cooldownRemaining)}</div>}
     </button>
-  );
-}
-
-function ResultBreakdown({ snapshot }: { snapshot: BattleSnapshot }) {
-  const r = snapshot.resultStats;
-  return (
-    <div className="battle-result-breakdown">
-      <div className="battle-result-breakdown__title">📊 戦闘結果の内訳</div>
-      <div className="battle-result-breakdown__grid">
-        <span>⏱️戦闘時間</span>
-        <span>{r.timeSeconds}秒</span>
-        <span>⚔️オート総ダメージ</span>
-        <span>{formatBigNumber(r.autoDamage)}</span>
-        <span>⚡コマンド総ダメージ</span>
-        <span>{formatBigNumber(r.commandDamage)}</span>
-        <span>☠️状態異常総ダメージ</span>
-        <span>{formatBigNumber(r.statusDamage)}</span>
-        <span>💚総回復量</span>
-        <span>{formatBigNumber(r.healed)}</span>
-        <span>💥最大単発ダメージ</span>
-        <span>{formatBigNumber(r.maxSingleHit)}</span>
-        <span>🏆最も活躍したコマンド</span>
-        <span>{r.mostDamagingCommandName ?? '—'}</span>
-      </div>
-    </div>
   );
 }
 
@@ -240,7 +227,6 @@ export function BattleScreen() {
   const avatarDefs = useMemo(() => state.equipped.map((i) => getPartDef(i.defId)), [state.equipped]);
   const playerCounts = useMemo(() => groupCountByType(avatarDefs), [avatarDefs]);
   const playerColor = useMemo(() => dominantSpeciesColor(avatarDefs), [avatarDefs]);
-  const capacity = useMemo(() => getCapacityInfo(state), [state]);
 
   // 演出は頻度が高く、React stateにすると再レンダーが際限なく増えるため、
   // ref配列 + 低頻度なeffectsTick更新でDOM反映する(TEST4のフローティング数字処理を踏襲)。
@@ -248,6 +234,11 @@ export function BattleScreen() {
   const toastsRef = useRef<(Toast & { createdAt: number })[]>([]);
   const playerPulsesRef = useRef<Record<string, number>>({});
   const enemyPulsesRef = useRef<Record<string, number>>({});
+  // TEST18: 最低限の戦闘演出(攻撃時の軽い移動・被弾時の揺れ)用。attackイベントのたびに
+  // 攻撃側/被弾側それぞれの直近発生時刻を記録し、レンダー時に経過時間で判定してCSSクラスを
+  // 付け外しする(floatersRef等と同じく、頻度が高いためRef+毎フレームのsetSnapshot再描画に乗せる)。
+  const lastAttackAtRef = useRef<{ player: number; enemy: number }>({ player: 0, enemy: 0 });
+  const lastHitAtRef = useRef<{ player: number; enemy: number }>({ player: 0, enemy: 0 });
   const floaterIdRef = useRef(0);
   const toastIdRef = useRef(0);
   const hitCountRef = useRef(0);
@@ -279,6 +270,8 @@ export function BattleScreen() {
     toastsRef.current = [];
     playerPulsesRef.current = {};
     enemyPulsesRef.current = {};
+    lastAttackAtRef.current = { player: 0, enemy: 0 };
+    lastHitAtRef.current = { player: 0, enemy: 0 };
     hitCountRef.current = 0;
     lastHitGameTimeRef.current = 0;
     prevPlayerGuardRef.current = false;
@@ -320,6 +313,8 @@ export function BattleScreen() {
       for (const e of attackEvents) {
         const pulses = e.side === 'player' ? playerPulsesRef.current : enemyPulsesRef.current;
         pulses[e.partInstanceId] = (pulses[e.partInstanceId] ?? 0) + 1;
+        lastAttackAtRef.current[e.side] = now;
+        lastHitAtRef.current[e.targetSide] = now;
         if (e.isCrit) playSE('crit');
         else playSE('hit');
       }
@@ -473,6 +468,13 @@ export function BattleScreen() {
   const enemyGuardActive = snapshot.enemy.activeEffects.some((e) => e.kind === 'damage_reduction');
   const enemyReflectActive = snapshot.enemy.activeEffects.some((e) => e.kind === 'reflect');
 
+  // TEST18: 最低限の戦闘演出(攻撃時の軽い移動・被弾時の揺れ)。直近の攻撃/被弾からの経過時間で判定する。
+  const fxNow = performance.now();
+  const playerAttackFx = fxNow - lastAttackAtRef.current.player < ATTACK_FX_MS;
+  const enemyAttackFx = fxNow - lastAttackAtRef.current.enemy < ATTACK_FX_MS;
+  const playerHitFx = fxNow - lastHitAtRef.current.player < HIT_FX_MS;
+  const enemyHitFx = fxNow - lastHitAtRef.current.enemy < HIT_FX_MS;
+
   return (
     <div className={`screen battle-screen-v2${shakeOn ? ' battle-screen-v2--shake' : ''}`}>
       <header className="screen__header battle-header-v2">
@@ -493,7 +495,7 @@ export function BattleScreen() {
 
         <div className="battle-stage__arena">
           <div className="battle-stage__enemy-figure">
-            <div className="figure-anchor">
+            <div className={`figure-anchor${enemyAttackFx ? ' figure-anchor--attack' : ''}${enemyHitFx ? ' figure-anchor--hit' : ''}`}>
               <BattleChimeraFigure
                 side="enemy"
                 bodyColor={enemyDef?.color ?? '#7c3aed'}
@@ -527,7 +529,7 @@ export function BattleScreen() {
           )}
 
           <div className="battle-stage__player-figure">
-            <div className="figure-anchor">
+            <div className={`figure-anchor${playerAttackFx ? ' figure-anchor--attack' : ''}${playerHitFx ? ' figure-anchor--hit' : ''}`}>
               <BattleChimeraFigure
                 side="player"
                 bodyColor={playerColor}
@@ -543,16 +545,17 @@ export function BattleScreen() {
             </div>
           </div>
 
+          {/* TEST18: 勝利/敗北を画面中央へ大きく表示し、内訳と「続ける」ボタンは廃止。
+              タップで次へ進む(下から出てくるカード形式はやめる)。 */}
           {snapshot.status !== 'ongoing' && (
-            <div className="modal-overlay">
-              <div className="modal-card" style={{ textAlign: 'center' }}>
-                <div className="battle-overlay__title">{snapshot.status === 'won' ? '🎉 勝利！' : '💀 敗北…'}</div>
-                <ResultBreakdown snapshot={snapshot} />
-                <button className="btn btn--primary btn--large btn--block" onClick={handleContinue}>
-                  続ける
-                </button>
-              </div>
-            </div>
+            <button
+              type="button"
+              className={`battle-end-overlay battle-end-overlay--${snapshot.status}`}
+              onClick={handleContinue}
+            >
+              <div className="battle-end-overlay__text">{snapshot.status === 'won' ? '勝利！' : '敗北…'}</div>
+              <div className="battle-end-overlay__hint">タップして次へ</div>
+            </button>
           )}
         </div>
 
@@ -565,10 +568,7 @@ export function BattleScreen() {
       </div>
 
       <div className="battle-bottom">
-        <div className="battle-bottom__capacity">
-          <CapacityBar used={capacity.used} total={capacity.total} compact />
-        </div>
-
+        {/* TEST18: 戦闘中の接続容量表示は情報過多のため非表示にする(戦闘準備画面で確認できる)。 */}
         {snapshot.commandsEnabled && (
           <div className="cmd-battle-panel">
             <MetabolismBar current={snapshot.metabolism.current} max={snapshot.metabolism.max} />
@@ -581,14 +581,14 @@ export function BattleScreen() {
         )}
 
         <div className="battle-bottom__controls">
-          <div className="speed-controls">
-            速度:
-            {SPEED_OPTIONS.map((s) => (
-              <button key={s} className={`btn btn--small${snapshot.speed === s ? ' btn--active' : ''}`} onClick={() => setSpeed(s)}>
-                {s === 0 ? '⏸' : `${s}x`}
-              </button>
-            ))}
-          </div>
+          {/* TEST18: 4倍速を廃止し、通常(1x)/倍速(2x)をワンタップで切り替えるだけのシンプルな
+              トグルボタンにする(「倍速ON/OFF」相当)。 */}
+          <button
+            className={`btn btn--small speed-toggle${snapshot.speed === 2 ? ' btn--active' : ''}`}
+            onClick={() => setSpeed(snapshot.speed === 2 ? 1 : 2)}
+          >
+            ⏩ 倍速{snapshot.speed === 2 ? ' ON' : ''}
+          </button>
           <button className="btn btn--small" onClick={() => setShowDetails((v) => !v)}>
             {showDetails ? '詳細を閉じる ▲' : '詳細を見る ▼'}
           </button>

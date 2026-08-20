@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useGame } from '../GameContext';
 import { acceptDrop, equippedDefs, tierOfCurrentBattle } from '../../engine/run';
 import { previewCostForNewPart } from '../../engine/capacity';
@@ -52,19 +52,14 @@ export function DropScreen() {
   const canEquip = selectedDef ? previewCost <= capacity.free : false;
   const synergyDelta = useMemo(() => (selectedDef ? computeSynergyDelta(eqDefs, selectedDef) : []), [selectedDef, eqDefs]);
 
-  if (!hasCandidates) {
-    return (
-      <div className="screen drop-screen">
-        <header className="screen__header">
-          <h1>🎁 部位を獲得</h1>
-        </header>
-        <p>部位の選択が完了しました。準備が整ったら次の戦闘へ進みましょう。</p>
-        <button className="btn btn--primary btn--large" onClick={() => dispatch({ type: 'NEXT_BATTLE' })}>
-          次の戦闘へ進む ➡️
-        </button>
-      </div>
-    );
-  }
+  // TEST18: 「部位の選択が完了しました」という不要な中間画面を廃止し、選択が終わり次第
+  // 直接、戦闘準備画面へ戻す(報酬演出はRewardOverlayがフェーズに関わらず最前面に
+  // 重ねて表示するため、この自動遷移とは独立してそのまま見える)。
+  useEffect(() => {
+    if (!hasCandidates) dispatch({ type: 'NEXT_BATTLE' });
+  }, [hasCandidates, dispatch]);
+
+  if (!hasCandidates) return null;
 
   return (
     <div className="screen drop-screen">

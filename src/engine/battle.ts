@@ -27,7 +27,14 @@ import {
   type ActiveCommandEffect,
 } from './commandEngine';
 
-export type SpeedSetting = 0 | 1 | 2 | 4;
+// TEST18: プレイテストで「戦闘が速すぎて何が起きているか分かりづらい」との指摘を受け、
+// 速度体系を「通常(1x)/倍速(2x)」の2種類だけに簡略化(4xは削除)。
+// あわせて、通常速度(1x)自体の実時間あたりの進行量を明確に落とし、視認しやすくする。
+// SPEED_TIME_SCALEは「UI上のx表記」から「実際にtick()へ渡すゲーム内時間の倍率」への変換テーブル。
+// ここを調整するだけで、部位の攻撃間隔・ダメージ計算等のゲームデータ・ロジックには一切触れずに
+// 体感速度だけを変えられる(dtがゲーム内のあらゆる時間経過の基準になっているため)。
+export type SpeedSetting = 0 | 1 | 2;
+const SPEED_TIME_SCALE: Record<SpeedSetting, number> = { 0: 0, 1: 0.55, 2: 1.1 };
 export type BattleStatus = 'ongoing' | 'won' | 'lost';
 export type BattleSide = 'player' | 'enemy';
 
@@ -57,7 +64,7 @@ export type BattleEvent =
   | { type: 'victory'; time: number }
   | { type: 'defeat'; time: number };
 
-const MAX_BUFFERED_EVENTS = 400; // drain漏れ時の安全な上限(4倍速でも際限なく溜め込まない)
+const MAX_BUFFERED_EVENTS = 400; // drain漏れ時の安全な上限(倍速でも際限なく溜め込まない)
 
 // Omit<Union, K> はそのままだとUnionの共通キーしか残らず判別共用体が壊れるため、
 // 条件型でメンバーごとに分配してからOmitする(pushEvent引数の型に使用)。
@@ -768,7 +775,7 @@ export class BattleEngine {
   tick(rawDt: number) {
     if (this.status !== 'ongoing') return;
     if (this.speed === 0 || rawDt <= 0) return;
-    const dt = Math.min(0.25, rawDt) * this.speed;
+    const dt = Math.min(0.25, rawDt) * SPEED_TIME_SCALE[this.speed];
     this.time += dt;
 
     if (this.commandsEnabled) this.tickCommandSystem(dt);
@@ -914,7 +921,7 @@ export class BattleEngine {
     if (healed > 0 && log) {
       // 継続回復(heal_over_time)の毎フレーム加算はlog=falseで呼ばれるため、
       // ここでは即時回復(応急再生・多重鼓動の初速分など)のみイベント化する。
-      // 毎フレームイベントを出すと4倍速時に演出・SEが際限なく発生するため。
+      // 毎フレームイベントを出すと倍速時に演出・SEが際限なく発生するため。
       this.pushLog(`💚 ${Math.round(healed)}回復`);
       this.pushEvent({ type: 'heal', side: 'player', amount: Math.round(healed) });
     }

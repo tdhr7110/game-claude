@@ -1,10 +1,11 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../GameContext';
 import { RARITY_EFFECT_CONFIG, type RewardCard } from '../../data/rewardPresentation';
 import { RARITY_COLORS, rarityLabel } from '../format';
-import { COMMAND_CATEGORY_LABELS, getCommandDef, resolveFamilyBestCommand } from '../../data/commandDefs';
-import { commandEffectSummary, describeCommandEvolutionChanges } from '../commandFormat';
+import { getCommandDef, resolveFamilyBestCommand } from '../../data/commandDefs';
+import { describeCommandEvolutionChanges } from '../commandFormat';
 import { equippedDefs } from '../../engine/run';
+import { playSE } from '../../engine/soundManager';
 import '../commandSystem.css';
 
 // ============================================================
@@ -31,6 +32,14 @@ export function RewardOverlay() {
   const [swapTarget, setSwapTarget] = useState<number | null>(null);
 
   const card = rewardQueue[0];
+
+  // TEST18: 部位獲得・コマンド獲得(進化含む)のたびに専用SEを1回だけ鳴らす。
+  useEffect(() => {
+    if (!card) return;
+    playSE(card.rewardType === 'part_acquired' ? 'part_acquired' : 'command_acquired');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card?.id]);
+
   if (!card) return null;
 
   const reduced = prefersReducedMotion();
@@ -134,10 +143,6 @@ export function RewardOverlay() {
           </div>
         )}
 
-        {card.sourcePartNames.length > 0 && (
-          <div className="reward-card__source muted">解放に関係した部位: {card.sourcePartNames.join('、')}</div>
-        )}
-
         {card.rewardType === 'command_evolved' && card.changeHighlights && card.changeHighlights.length > 0 && (
           <ul className="reward-card__changes">
             {card.changeHighlights.map((h) => (
@@ -148,7 +153,7 @@ export function RewardOverlay() {
 
         {isAutoRetainedEvolution && (
           <>
-            <p className="muted reward-card__auto-note">装備中の枠{(card.alreadyEquippedSlot ?? 0) + 1}のまま自動的に反映されます。</p>
+            <p className="muted reward-card__auto-note">装備中のコマンドとして自動的に反映されます。</p>
             <button className="btn btn--primary btn--block" onClick={next}>
               OK
             </button>
@@ -159,14 +164,14 @@ export function RewardOverlay() {
           <div className="reward-card__actions">
             {emptySlotIndex >= 0 ? (
               <button className="btn btn--primary btn--block" onClick={() => equipToSlot(emptySlotIndex)}>
-                空き枠（枠{emptySlotIndex + 1}）へ装備
+                空き枠へ装備
               </button>
             ) : (
               <>
                 <p className="reward-card__swap-hint">どのコマンドと入れ替えますか？</p>
                 <div className="reward-card__slot-picker">
                   {state.commandLoadout.map((familyId, i) => (
-                    <SlotChip key={i} slotIndex={i} familyId={familyId} card={card} onPick={() => setSwapTarget(i)} />
+                    <SlotChip key={i} familyId={familyId} card={card} onPick={() => setSwapTarget(i)} />
                   ))}
                 </div>
               </>
@@ -201,12 +206,10 @@ function useEquippedCommandLabel(familyId: string | null): string {
 }
 
 function SlotChip({
-  slotIndex,
   familyId,
   card,
   onPick,
 }: {
-  slotIndex: number;
   familyId: string | null;
   card: RewardCard;
   onPick: () => void;
@@ -214,14 +217,15 @@ function SlotChip({
   const label = useEquippedCommandLabel(familyId);
   return (
     <button className="btn btn--small reward-card__slot-chip" onClick={onPick}>
-      枠{slotIndex + 1}: {label} → {card.icon}
+      {label} → {card.icon}
       {card.name}
     </button>
   );
 }
 
-// TEST6由来: 入れ替え前後のコマンドを能力(カテゴリ・代謝コスト・CD・効果文)まで並べて比較表示する。
-// 進化元→進化先だけでなく、無関係なコマンド同士の入れ替えでも変化点を確認できるようにする。
+// TEST18: 以前は入れ替え前後の能力を2カラムで並べる冗長な比較表示だったが、
+// 「最終的に何がどう変わるか」だけ分かれば十分なため、1行のサマリー+変化点の
+// 箇条書きだけに簡略化した。
 function SwapConfirm({
   slotIndex,
   card,
@@ -241,34 +245,16 @@ function SwapConfirm({
 
   return (
     <div className="reward-card__swap-confirm">
-      <div className="reward-card__swap-compare">
-        <div className="reward-card__swap-side">
-          <div className="reward-card__swap-side-label">入れ替え前</div>
-          {fromCmd ? (
-            <>
-              <div className="reward-card__swap-name">
-                {fromCmd.icon} {fromCmd.name}
-              </div>
-              <div className="reward-card__swap-stats muted">
-                {COMMAND_CATEGORY_LABELS[fromCmd.category]}・💧{fromCmd.metabolismCost}・⏱{fromCmd.cooldownSeconds}秒
-              </div>
-              <div className="reward-card__swap-desc muted">{commandEffectSummary(fromCmd)}</div>
-            </>
-          ) : (
-            <div className="muted">空き</div>
-          )}
-        </div>
-        <span className="reward-card__evolution-arrow">↓</span>
-        <div className="reward-card__swap-side">
-          <div className="reward-card__swap-side-label">入れ替え後</div>
-          <div className="reward-card__swap-name">
-            {card.icon} {card.name}
-          </div>
-          <div className="reward-card__swap-stats muted">
-            {card.categoryLabel}・💧{card.metabolismCost}・⏱{card.cooldownSeconds}秒
-          </div>
-          <div className="reward-card__swap-desc muted">{card.description}</div>
-        </div>
+      <div className="reward-card__swap-summary">
+        {fromCmd ? (
+          <>
+            {fromCmd.icon} {fromCmd.name}
+          </>
+        ) : (
+          '空き枠'
+        )}
+        <span className="reward-card__evolution-arrow"> → </span>
+        {card.icon} {card.name}
       </div>
 
       {changes.length > 0 && (
