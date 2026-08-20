@@ -6,11 +6,26 @@ import type { EnemyDef, EnemyTier } from '../../data/types';
 import { SPECIES_LABELS } from '../../data/types';
 import { buildEnemySynergyHint } from '../enemySelectHint';
 
+// TODO(TEST18+): 現状は「戦闘相手を選ぶ画面」専用だが、将来的にはショップ・融合・特殊イベント等の
+// 選択肢も並ぶ「次の行き先を選ぶ画面」へ拡張する予定(要件7)。今回は大規模リファクタリングを
+// 避けるため見送るが、拡張する際は候補リストの要素を「敵専用のEnemyDef」ではなく
+// {kind:'battle', enemy} | {kind:'shop'} | {kind:'event', ...} のような判別共用体にし、
+// このEnemySelectScreen自体もPrepScreen同様の「フェーズ選択画面」として汎用化するのが
+// 既存の型(RunState.phase/enemyCandidates)への影響が最も小さい進め方になる見込み。
 const TIER_LABELS: Record<EnemyTier, string> = {
   normal: '通常',
   elite: '強敵',
   miniboss: '中ボス',
   boss: 'ボス',
+};
+
+// TEST18: 敵選択画面の情報過多を解消するため、常時表示は「敵名・種別・最低限の危険度・
+// 主なドロップ」に絞る。危険度はtierをそのまま星の数へ変換した簡易表示(敵データ自体は変更しない)。
+const DANGER_LABELS: Record<EnemyTier, string> = {
+  normal: '★☆☆',
+  elite: '★★☆',
+  miniboss: '★★★',
+  boss: '★★★★',
 };
 
 // 攻撃部位(interval>0)から平均攻撃力・平均間隔のおおよその目安を計算する(演出用の簡易値)。
@@ -34,75 +49,80 @@ function EnemyCandidateCard({
   eqDefs: ReturnType<typeof equippedDefs>;
   onSelect: () => void;
 }) {
+  const [showDetails, setShowDetails] = useState(false);
   const { avgAttack, avgInterval, dps } = estimateAttack(enemy);
   const bodyParts = enemy.bodyPartIds.map(getPartDef);
   const rareParts = enemy.rareDropPartIds.map(getPartDef);
   const hint = useMemo(() => buildEnemySynergyHint(enemy, eqDefs), [enemy, eqDefs]);
   const speciesLabel = enemy.species === 'chimera' ? 'キメラ' : SPECIES_LABELS[enemy.species];
+  const mainDrops = [...bodyParts.slice(0, 3), ...rareParts.slice(0, 1)];
+  const moreDropCount = bodyParts.length + rareParts.length - mainDrops.length;
 
   return (
-    <button
-      type="button"
-      className={`enemy-select-card${selected ? ' enemy-select-card--selected' : ''}`}
-      onClick={onSelect}
-    >
-      <div className="enemy-select-card__head">
-        <span className="enemy-select-card__icon" style={{ color: enemy.color }}>
-          {enemy.icon}
-        </span>
-        <div className="enemy-select-card__title">
-          <div className="enemy-select-card__name">{enemy.name}</div>
-          <div className="muted">
-            {speciesLabel} ・ {TIER_LABELS[enemy.tier]}
+    <div className={`enemy-select-card${selected ? ' enemy-select-card--selected' : ''}`}>
+      <button type="button" className="enemy-select-card__main" onClick={onSelect}>
+        <div className="enemy-select-card__head">
+          <span className="enemy-select-card__icon" style={{ color: enemy.color }}>
+            {enemy.icon}
+          </span>
+          <div className="enemy-select-card__title">
+            <div className="enemy-select-card__name">{enemy.name}</div>
+            <div className="muted">
+              {speciesLabel} ・ {TIER_LABELS[enemy.tier]}
+            </div>
           </div>
+          <span className="enemy-select-card__danger" title="危険度">
+            {DANGER_LABELS[enemy.tier]}
+          </span>
         </div>
-      </div>
 
-      <div className="enemy-select-card__stats">
-        <span title="HP">❤️ HP{enemy.hp}</span>
-        <span title="防御力">🛡️防御{enemy.defense}({enemy.damageReductionPct}%軽減)</span>
-        <span title="回避率">💨回避{enemy.evasionPct}%</span>
-        <span title="攻撃力の目安">
-          ⚔️攻撃力目安 {avgAttack}/{avgInterval}s (DPS≒{dps})
-        </span>
-      </div>
-
-      <p className="enemy-select-card__desc">{enemy.description}</p>
-
-      <div className="enemy-select-card__section">
-        <div className="enemy-select-card__section-title">🌀 固有ギミック</div>
-        <p className="muted">{enemy.gimmickSummary}</p>
-      </div>
-
-      <div className="enemy-select-card__section">
-        <div className="enemy-select-card__section-title">🦴 所持部位(通常ドロップ)</div>
+        <div className="enemy-select-card__section-title">🦴 主なドロップ</div>
         <div className="enemy-select-card__part-chips">
-          {bodyParts.map((p) => (
-            <span key={p.id} className="chip" title={p.description}>
+          {mainDrops.map((p) => (
+            <span key={p.id} className={`chip${rareParts.includes(p) ? ' chip--rare' : ''}`}>
               {p.icon} {p.name}
             </span>
           ))}
+          {moreDropCount > 0 && <span className="chip">+{moreDropCount}</span>}
         </div>
-      </div>
+      </button>
 
-      {rareParts.length > 0 && (
-        <div className="enemy-select-card__section">
-          <div className="enemy-select-card__section-title">✨ レアドロップ候補</div>
-          <div className="enemy-select-card__part-chips">
-            {rareParts.map((p) => (
-              <span key={p.id} className="chip chip--rare" title={p.description}>
-                {p.icon} {p.name}
-              </span>
-            ))}
+      <button
+        type="button"
+        className="btn btn--small btn--ghost enemy-select-card__toggle"
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowDetails((v) => !v);
+        }}
+      >
+        {showDetails ? '詳細を閉じる ▲' : '詳細を見る ▼'}
+      </button>
+
+      {showDetails && (
+        <div className="enemy-select-card__details">
+          <div className="enemy-select-card__stats">
+            <span title="HP">❤️ HP{enemy.hp}</span>
+            <span title="防御力">🛡️防御{enemy.defense}({enemy.damageReductionPct}%軽減)</span>
+            <span title="回避率">💨回避{enemy.evasionPct}%</span>
+            <span title="攻撃力の目安">
+              ⚔️攻撃力目安 {avgAttack}/{avgInterval}s (DPS≒{dps})
+            </span>
+          </div>
+
+          <p className="enemy-select-card__desc">{enemy.description}</p>
+
+          <div className="enemy-select-card__section">
+            <div className="enemy-select-card__section-title">🌀 固有ギミック</div>
+            <p className="muted">{enemy.gimmickSummary}</p>
+          </div>
+
+          <div className="enemy-select-card__section">
+            <div className="enemy-select-card__section-title">💡 シナジー・コマンドのヒント</div>
+            <p className="muted">{hint}</p>
           </div>
         </div>
       )}
-
-      <div className="enemy-select-card__section">
-        <div className="enemy-select-card__section-title">💡 シナジー・コマンドのヒント</div>
-        <p className="muted">{hint}</p>
-      </div>
-    </button>
+    </div>
   );
 }
 

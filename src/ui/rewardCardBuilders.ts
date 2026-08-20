@@ -1,7 +1,7 @@
 import type { PartDef } from '../data/types';
 import { typeLabel } from './format';
 import { commandSourceParts, resolveCommandRarity, COMMAND_CATEGORY_LABELS, type CommandDef } from '../data/commandDefs';
-import { commandEffectSummary, describeCommandEvolutionChanges } from './commandFormat';
+import { commandEffectSummaryShort, describeCommandEvolutionChanges } from './commandFormat';
 import type { CommandChangeEvent } from '../engine/commandRewards';
 import type { RewardCard } from '../data/rewardPresentation';
 
@@ -43,7 +43,7 @@ function commandCard(cmd: CommandDef, equippedAfter: PartDef[]): Omit<RewardCard
     icon: cmd.icon,
     color: cmd.color,
     categoryLabel: COMMAND_CATEGORY_LABELS[cmd.category],
-    description: commandEffectSummary(cmd),
+    description: commandEffectSummaryShort(cmd),
     sourcePartNames: sourceParts.map((p) => p.name),
     familyId: cmd.familyId,
     metabolismCost: cmd.metabolismCost,

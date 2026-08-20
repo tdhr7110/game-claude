@@ -231,6 +231,27 @@ jobs:
           mkdir -p ../dist/test18
           cp -r dist/. ../dist/test18/
 
+      # フェーズ19（TEST19: CTB(行動順可視化型コマンドバトル)プロトタイプ検証版。TEST18を基準に、
+      # 独立したCtbBattleEngine/CtbBattleScreenを追加し、デバッグパネルのトグルでTEST18の
+      # 既存戦闘画面と切り替えて比較できるようにしたもの）を /test19/ サブパスに同梱する。
+      # TEST1〜18・正式版とは完全に独立したブランチで、取得・ビルドに失敗しても他のデプロイは継続する。
+      - name: Checkout test19 branch (CTBプロトタイプ検証用)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: claude/ctb-battle-prototype-2olopf
+          path: test19-branch
+
+      - name: Build test19 branch into /test19/ subpath
+        if: hashFiles('test19-branch/package.json') != ''
+        continue-on-error: true
+        run: |
+          cd test19-branch
+          npm ci
+          npm run build -- --base=/game-claude/test19/
+          mkdir -p ../dist/test19
+          cp -r dist/. ../dist/test19/
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

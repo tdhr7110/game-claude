@@ -30,6 +30,7 @@ export function PartCard({ def, cost, selected, disabled, compact, badge, onClic
         {def.icon}
       </div>
       <div className="part-card__name">{def.name}</div>
+      {!compact && <div className="part-card__desc">{def.passiveDescription ?? def.description}</div>}
       <div className="part-card__meta">
         <span className="chip">
           {TYPE_ICONS[def.type]} {typeLabel(def.type)}

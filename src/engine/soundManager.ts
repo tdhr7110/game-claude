@@ -8,7 +8,22 @@
 
 const STORAGE_KEY = 'chimera-battle:test8:se-volume:v1';
 
-export type SEKind = 'hit' | 'crit' | 'poison' | 'burn' | 'heal' | 'guard' | 'reflect' | 'command' | 'victory' | 'defeat' | 'telegraph';
+export type SEKind =
+  | 'hit'
+  | 'crit'
+  | 'poison'
+  | 'burn'
+  | 'heal'
+  | 'guard'
+  | 'reflect'
+  | 'command'
+  | 'victory'
+  | 'defeat'
+  | 'telegraph'
+  // TEST18: 部位獲得・コマンド獲得の報酬演出用。素材が用意でき次第、TONE_TABLEの該当エントリを
+  // 差し替えるだけで済むよう、呼び出し側(RewardOverlay)は種別名だけで発火する。
+  | 'part_acquired'
+  | 'command_acquired';
 
 interface SESettings {
   muted: boolean;
@@ -146,6 +161,16 @@ const TONE_TABLE: Record<SEKind, Tone[]> = {
   telegraph: [
     { freq: 440, duration: 0.09, type: 'triangle', gain: 0.45, slideTo: 700 },
     { freq: 440, duration: 0.09, type: 'triangle', gain: 0.45, slideTo: 700 },
+  ],
+  // TEST18: 部位獲得・コマンド獲得の報酬演出用の簡易トーン(本番音源が用意でき次第差し替え予定)。
+  part_acquired: [
+    { freq: 523, duration: 0.07, type: 'sine', gain: 0.45 },
+    { freq: 784, duration: 0.14, type: 'sine', gain: 0.45 },
+  ],
+  command_acquired: [
+    { freq: 587, duration: 0.06, type: 'triangle', gain: 0.45 },
+    { freq: 880, duration: 0.06, type: 'triangle', gain: 0.45 },
+    { freq: 1175, duration: 0.16, type: 'triangle', gain: 0.45 },
   ],
 };
 

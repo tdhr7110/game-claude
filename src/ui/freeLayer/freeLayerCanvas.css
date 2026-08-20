@@ -71,9 +71,13 @@
    サイズ・位置(clamp(150px,42vw,210px)、position:relative、margin:0 auto)に追従させる。 */
 .battle-chimera-figure {
   position: relative;
-  width: clamp(150px, 42vw, 210px);
-  height: clamp(150px, 42vw, 210px);
+  /* TEST18: 画像素材を差し替えてもレイアウトが破綻しないよう、コンテナサイズを
+     ビューポート高にも連動させつつ、内容ははみ出させずこの領域内に収める。 */
+  width: clamp(120px, min(40vw, 26dvh), 210px);
+  height: clamp(120px, min(40vw, 26dvh), 210px);
   margin: 0 auto;
+  overflow: hidden;
+  border-radius: 12px;
   transition: filter 0.2s;
 }
 .battle-chimera-figure .free-layer-canvas {
