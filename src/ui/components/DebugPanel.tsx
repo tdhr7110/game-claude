@@ -172,7 +172,7 @@ export function DebugPanel({ onOpenTurnTest, onOpenFreeLayerTest }: { onOpenTurn
       <div className="debug-panel__group">
         <label>ゲーム速度（戦闘中のみ）</label>
         <div className="debug-panel__row">
-          {[0, 1, 2, 4].map((v) => (
+          {[0, 1, 2].map((v) => (
             <button key={v} className="btn btn--small" disabled={state.phase !== 'battle'} onClick={() => setSpeed(v as SpeedSetting)}>
               {v === 0 ? '停止' : `${v}x`}
             </button>

@@ -49,7 +49,7 @@
   align-items: center;
   gap: 2px;
   padding: 8px 6px;
-  min-height: 68px;
+  min-height: 82px;
   background: var(--color-panel);
   border: 2px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -95,6 +95,17 @@
 .cmd-button__name {
   font-size: 0.8em;
   font-weight: 800;
+}
+.cmd-button__desc {
+  /* TEST18: 戦闘中でも各コマンドの効果が分かるよう追加した短い説明文(1行に収める)。 */
+  font-size: 0.62em;
+  line-height: 1.15;
+  color: var(--color-text-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 2px;
 }
 .cmd-button__cost {
   font-size: 0.7em;
@@ -189,6 +200,31 @@
 .figure-anchor {
   position: relative;
   display: inline-flex;
+}
+/* TEST18: 最低限の戦闘演出。攻撃側は軽く前へ踏み込み、被弾側は小さく揺れる。
+   新規画像は使わず、既存のフィギュアコンテナをCSSアニメーションさせるだけ。 */
+.figure-anchor--attack {
+  animation: figure-fx-attack 0.16s ease-out;
+}
+.figure-anchor--hit {
+  animation: figure-fx-hit 0.2s ease-in-out;
+}
+@keyframes figure-fx-attack {
+  0% { transform: translateY(0) scale(1); }
+  45% { transform: translateY(-5px) scale(1.04); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes figure-fx-hit {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  50% { transform: translateX(4px); }
+  75% { transform: translateX(-2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .figure-anchor--attack,
+  .figure-anchor--hit {
+    animation: none;
+  }
 }
 .figure-status-badges {
   position: absolute;
@@ -520,10 +556,6 @@
   color: var(--color-text-muted);
   margin-bottom: 8px;
 }
-.reward-card__source {
-  font-size: 0.72em;
-  margin-bottom: 10px;
-}
 .reward-card__changes {
   text-align: left;
   font-size: 0.78em;
@@ -583,37 +615,16 @@
   gap: 8px;
   margin-top: 10px;
 }
-.reward-card__swap-compare {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-.reward-card__swap-side {
+/* TEST18: 入れ替え前後の2カラム比較をやめ、1行のサマリー表示に簡略化 */
+.reward-card__swap-summary {
   width: 100%;
   text-align: center;
-  padding: 8px 10px;
+  padding: 10px 12px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-sm);
-}
-.reward-card__swap-side-label {
-  font-size: 0.68em;
-  letter-spacing: 0.08em;
-  color: var(--color-text-dim);
-  margin-bottom: 2px;
-}
-.reward-card__swap-name {
   font-weight: 800;
   font-size: 0.95em;
-}
-.reward-card__swap-stats {
-  font-size: 0.72em;
-  margin-top: 2px;
-}
-.reward-card__swap-desc {
-  font-size: 0.74em;
-  margin-top: 2px;
 }
 
 /* --- 粒子・光の輪・放射ビーム(レアリティに応じてJS側で表示数を変える) --- */

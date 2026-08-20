@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { GameProvider, useGame } from './ui/GameContext';
+import { TitleScreen } from './ui/components/TitleScreen';
 import { PrepScreen } from './ui/components/PrepScreen';
 import { EnemySelectScreen } from './ui/components/EnemySelectScreen';
 import { BattleScreen } from './ui/components/BattleScreen';
@@ -16,10 +17,12 @@ import { FreeLayerTestScreen } from './ui/freeLayer/FreeLayerTestScreen';
 
 function Root({ onOpenTurnTest, onOpenFreeLayerTest }: { onOpenTurnTest: () => void; onOpenFreeLayerTest: () => void }) {
   const { state } = useGame();
+  // TEST6由来: 戦闘画面は1画面に収め、ページ全体のスクロールが発生しないようにする
+  // (app-root--pinnedでビューポート高に固定し、内部は縮小・内部スクロールできるようにする)。
+  // TEST18: 戦闘準備画面もタブ切替でページ全体がスクロールしないよう、同じ固定ビューポート方式にする。
+  const pinned = state.phase === 'battle' || state.phase === 'prep';
   return (
-    // TEST6由来: 戦闘画面は1画面に収め、ページ全体のスクロールが発生しないようにする
-    // (app-root--battleでビューポート高に固定し、内部は縮小できるようにする)。
-    <div className={`app-root${state.phase === 'battle' ? ' app-root--battle' : ''}`}>
+    <div className={`app-root${pinned ? ' app-root--pinned' : ''}`}>
       {state.phase === 'prep' && <PrepScreen />}
       {state.phase === 'enemySelect' && <EnemySelectScreen />}
       {state.phase === 'battle' && <BattleScreen />}
@@ -44,9 +47,17 @@ export default function App() {
   const [showTurnTest, setShowTurnTest] = useState(false);
   // TEST11: 自由合体レイヤー表示TESTも同様に、既存のラン進行を一切変更しない独立オーバーレイとして重ねる。
   const [showFreeLayerTest, setShowFreeLayerTest] = useState(false);
+  // TEST18: タイトル画面はRunState/GameContextとは独立したローカルUI状態として持つ。
+  // ゲーム進行ロジック・セーブ機構には一切影響させず、「GAME START」を押すまで
+  // 既存の戦闘準備画面(Root)を表示しないだけのシンプルな出し分けにする。
+  const [showTitle, setShowTitle] = useState(true);
   return (
     <GameProvider>
-      <Root onOpenTurnTest={() => setShowTurnTest(true)} onOpenFreeLayerTest={() => setShowFreeLayerTest(true)} />
+      {showTitle ? (
+        <TitleScreen onStart={() => setShowTitle(false)} />
+      ) : (
+        <Root onOpenTurnTest={() => setShowTurnTest(true)} onOpenFreeLayerTest={() => setShowFreeLayerTest(true)} />
+      )}
       {showTurnTest && <TurnBattleTestScreen onExit={() => setShowTurnTest(false)} />}
       {showFreeLayerTest && <FreeLayerTestScreen onExit={() => setShowFreeLayerTest(false)} />}
     </GameProvider>

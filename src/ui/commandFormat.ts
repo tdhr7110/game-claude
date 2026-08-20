@@ -121,6 +121,29 @@ export function describeCommandEvolutionChanges(from: CommandDef, to: CommandDef
   return changes;
 }
 
+// 戦闘画面・コマンド一覧など「メインUI」向けの簡略版。commandEffectSummary()は
+// 「4ダメージ/秒 × 4秒」のような内部計算がそのまま読める形式のものがあり、
+// 常時表示には情報量が多すぎるため、対象の効果IDだけ短い言い回しに差し替える。
+// ここで数値そのものを変えることはしない(ゲームロジック上の値は一切変更しない)。
+export function commandEffectSummaryShort(cmd: CommandDef): string {
+  const v = cmd.effectValues;
+  switch (cmd.effectId) {
+    case 'flame_bolt':
+    case 'hell_flame_bolt':
+      return `${v.damage}ダメージ＋炎上`;
+    case 'poison_burst':
+    case 'plague_burst':
+      return `毒を消費して大ダメージ`;
+    case 'heartbeat_heal':
+    case 'dragon_vein_heal':
+      return `即時回復＋継続回復`;
+    case 'paralysis_debuff':
+      return `敵の行動を${v.durationSec}秒停止`;
+    default:
+      return commandEffectSummary(cmd);
+  }
+}
+
 export function commandEffectSummary(cmd: CommandDef): string {
   const v = cmd.effectValues;
   switch (cmd.effectId) {

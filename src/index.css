@@ -131,8 +131,9 @@ p {
   flex-direction: column;
 }
 /* TEST6由来: 戦闘画面はビューポート内に収め、ページ全体のスクロールを発生させない。
-   代わりに内部(.battle-stage__arena等)が縮小して収まるようにする。 */
-.app-root--battle {
+   代わりに内部(.battle-stage__arena等)が縮小して収まるようにする。
+   TEST18: 戦闘準備画面(タブ切替でページが上下に飛ぶ問題の修正)にも同じ固定ビューポート方式を適用する。 */
+.app-root--pinned {
   height: 100dvh;
   overflow: hidden;
 }
@@ -162,6 +163,10 @@ p {
 .screen__header h1 {
   font-size: 1.05em;
   line-height: 1.3;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hp-readout {
@@ -174,7 +179,8 @@ p {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
 }
 
 .muted {
@@ -407,6 +413,16 @@ p {
 .part-card__name {
   font-weight: 700;
   font-size: 0.9em;
+}
+.part-card__desc {
+  /* TEST18: 部位選択で「簡潔な効果」が一目で分かるよう追加(2行まで) */
+  font-size: 0.72em;
+  color: var(--color-text-muted);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .part-card__meta {
   display: flex;
@@ -771,6 +787,34 @@ p {
   padding-bottom: 8px;
 }
 
+/* TEST18: 戦闘準備画面はヘッダー/アバター/下部ナビを固定し、タブの中身だけを
+   内部スクロールさせる（タブ切替でページ全体のスクロール位置が動かないようにするため）。
+   .app-root--pinnedでビューポート高に固定された領域の中で、この画面自体をflex columnにする。 */
+.prep-screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.prep-screen > .screen__header,
+.prep-screen > .prep-hero,
+.prep-screen > .sticky-cta,
+.prep-screen > .bottom-nav {
+  flex-shrink: 0;
+}
+.prep-screen > .tab-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.prep-screen > .sticky-cta,
+.prep-screen > .bottom-nav {
+  position: static;
+  bottom: auto;
+}
+
 /* ============================================================
    モーダル共通（部位詳細・図鑑・初回説明で共用）
    ============================================================ */
@@ -877,6 +921,59 @@ p {
 }
 .intro-card .btn--large {
   width: 100%;
+}
+
+/* ============================================================
+   タイトル画面（TEST18: 簡易版。本番デザイン・ロゴ画像は別途制作予定のため
+   最低限の要素のみ。title-screen__logo内を差し替えるだけで
+   画像ロゴ等への置き換えができるようにしておく）
+   ============================================================ */
+.title-screen {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  padding: 24px calc(env(safe-area-inset-right, 0px) + 24px) calc(env(safe-area-inset-bottom, 0px) + 24px)
+    calc(env(safe-area-inset-left, 0px) + 24px);
+  text-align: center;
+  background: radial-gradient(circle at 50% 20%, rgba(168, 85, 247, 0.22), transparent 60%), var(--color-bg);
+}
+.title-screen__logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.title-screen__emblem {
+  font-size: 4.4em;
+  line-height: 1;
+  filter: drop-shadow(0 0 22px rgba(168, 85, 247, 0.55));
+}
+.title-screen__title {
+  font-family: var(--font-title);
+  font-size: 1.9em;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  margin: 4px 0 0;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.title-screen__tagline {
+  font-size: 0.85em;
+  color: var(--color-text-muted);
+  max-width: 320px;
+}
+.title-screen__start {
+  min-width: 220px;
+  animation: title-start-pulse 2.2s ease-in-out infinite;
+}
+@keyframes title-start-pulse {
+  0%, 100% { box-shadow: 0 4px 14px rgba(168, 85, 247, 0.35); }
+  50% { box-shadow: 0 4px 26px rgba(168, 85, 247, 0.65); }
 }
 
 /* ============================================================
@@ -995,9 +1092,10 @@ p {
   margin: 4px 0;
 }
 
+/* TEST18: HPバーが太すぎるとの指摘を受け、高さ・文字サイズをコンパクトにした */
 .hp-bar {
   position: relative;
-  height: 24px;
+  height: 14px;
   background: #241a2a;
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -1014,7 +1112,7 @@ p {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.8em;
+  font-size: 0.62em;
   font-weight: 800;
   text-shadow: 0 1px 2px #000;
 }
@@ -1067,12 +1165,6 @@ p {
 .battle-footer {
   margin-top: 16px;
 }
-.speed-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 8px;
-}
 .battle-log {
   background: #0c0810;
   border: 1px solid var(--color-border);
@@ -1121,21 +1213,31 @@ p {
   gap: 12px;
   padding-bottom: 90px; /* sticky-ctaと重ならないための余白 */
 }
+/* TEST18: 情報量が多すぎるとの指摘を受け、常時表示は「敵名・種別・危険度・主なドロップ」に
+   絞り、内部ステータス・説明文・ギミック詳細は「詳細を見る」で開閉する構造にした。 */
 .enemy-select-card {
-  display: block;
-  width: 100%;
-  text-align: left;
+  display: flex;
+  flex-direction: column;
   background: var(--color-panel);
   border: 2px solid var(--color-border-soft);
   border-radius: var(--radius-md);
-  padding: var(--spacing-md);
   box-shadow: var(--shadow-card);
-  cursor: pointer;
   color: var(--color-text);
+  overflow: hidden;
 }
 .enemy-select-card--selected {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.35);
+}
+.enemy-select-card__main {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: var(--spacing-md);
+  cursor: pointer;
+  color: inherit;
 }
 .enemy-select-card__head {
   display: flex;
@@ -1147,9 +1249,26 @@ p {
   font-size: 2em;
   line-height: 1;
 }
+.enemy-select-card__title {
+  flex: 1;
+  min-width: 0;
+}
 .enemy-select-card__name {
   font-weight: 800;
   font-size: 1.05em;
+}
+.enemy-select-card__danger {
+  font-size: 0.85em;
+  color: var(--color-warn);
+  white-space: nowrap;
+}
+.enemy-select-card__toggle {
+  align-self: center;
+  margin: 0 0 8px;
+}
+.enemy-select-card__details {
+  padding: var(--spacing-md) var(--spacing-md) var(--spacing-md);
+  border-top: 1px solid var(--color-border-soft);
 }
 .enemy-select-card__stats {
   display: flex;
@@ -2046,6 +2165,67 @@ body.debug-open {
 @keyframes flash-pulse {
   0% { opacity: 0.55; }
   100% { opacity: 0; }
+}
+
+/* ============================================================
+   勝敗オーバーレイ（TEST18: 中央に大きく表示し、タップで次へ進む）
+   ============================================================ */
+.battle-end-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(8, 4, 18, 0.72);
+  border: none;
+  padding: 0;
+  appearance: none;
+  cursor: pointer;
+  animation: battle-end-fade-in 0.25s ease-out;
+}
+@keyframes battle-end-fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.battle-end-overlay__text {
+  font-family: var(--font-title);
+  font-size: clamp(2em, 12vw, 3.2em);
+  font-weight: 900;
+  animation: battle-end-pop 0.4s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+.battle-end-overlay--won .battle-end-overlay__text {
+  color: var(--color-yellow);
+  text-shadow: 0 0 18px rgba(251, 191, 36, 0.8), 0 0 40px rgba(251, 191, 36, 0.5);
+}
+.battle-end-overlay--lost .battle-end-overlay__text {
+  color: var(--color-danger);
+  text-shadow: 0 0 18px rgba(248, 97, 122, 0.7);
+}
+@keyframes battle-end-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  70% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.battle-end-overlay__hint {
+  font-size: 0.85em;
+  color: var(--color-text-muted);
+  animation: battle-end-hint-blink 1.6s ease-in-out infinite;
+}
+@keyframes battle-end-hint-blink {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .battle-end-overlay,
+  .battle-end-overlay__text,
+  .battle-end-overlay__hint {
+    animation: none;
+  }
 }
 
 .battle-bottom {

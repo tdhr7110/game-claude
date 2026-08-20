@@ -13,14 +13,15 @@ import { SynergyPanel } from './SynergyPanel';
 import { ChimeraAvatar } from './ChimeraAvatar';
 import { CodexModal } from './CodexModal';
 import { FusionCodexModal } from './FusionCodexModal';
-import { CommandEditModal } from './CommandEditModal';
+import { CommandsTab } from './CommandsTab';
 
-type PrepTab = 'status' | 'parts' | 'synergy';
+type PrepTab = 'status' | 'parts' | 'synergy' | 'commands';
 
 const NAV_ITEMS: { id: PrepTab; icon: string; label: string }[] = [
   { id: 'status', icon: '❤️', label: 'ステータス' },
   { id: 'parts', icon: '🦴', label: '部位' },
   { id: 'synergy', icon: '⭐', label: 'シナジー' },
+  { id: 'commands', icon: '⚡', label: 'コマンド' },
 ];
 
 interface SelectedPart {
@@ -35,14 +36,13 @@ export function PrepScreen() {
   const [selected, setSelected] = useState<SelectedPart | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [showFusionCodex, setShowFusionCodex] = useState(false);
-  const [showCommandEdit, setShowCommandEdit] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const unseenCommandCount = state.unseenCommandIds.length;
 
-  function openCommandEdit() {
-    setShowCommandEdit(true);
-    // 編集画面を開いて内容を確認したことをもってNEWバッジを解除する。
-    if (unseenCommandCount > 0) dispatch({ type: 'MARK_COMMANDS_SEEN' });
+  function selectTab(next: PrepTab) {
+    setTab(next);
+    // コマンドタブを開いて内容を確認したことをもってNEWバッジを解除する。
+    if (next === 'commands' && unseenCommandCount > 0) dispatch({ type: 'MARK_COMMANDS_SEEN' });
   }
 
   const eqDefs = useMemo(() => equippedDefs(state), [state]);
@@ -86,21 +86,14 @@ export function PrepScreen() {
           <button className="btn btn--small btn--ghost" onClick={() => setShowIntro(true)} title="遊び方を表示">
             ❓
           </button>
-          <button className="btn btn--small btn--ghost" onClick={() => setShowGallery(true)} title="図鑑を見る（部位・敵・キメラ）">
-            📖{chimeraGallery.length > 0 ? `(${chimeraGallery.length})` : ''}
-          </button>
-          <button className="btn btn--small btn--ghost" onClick={() => setShowFusionCodex(true)} title="融合図鑑を見る">
-            🧬{fusionCodex.length > 0 ? `(${fusionCodex.length})` : ''}
-          </button>
           <button className="btn btn--small btn--ghost" onClick={() => setShowMenu(true)} title="その他のメニュー">
-            ⋯
+            ☰
           </button>
         </div>
       </header>
 
       {showGallery && <CodexModal onClose={() => setShowGallery(false)} />}
       {showFusionCodex && <FusionCodexModal onClose={() => setShowFusionCodex(false)} />}
-      {showCommandEdit && <CommandEditModal onClose={() => setShowCommandEdit(false)} />}
       {showMenu && (
         <div className="modal-overlay" onClick={() => setShowMenu(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
@@ -127,7 +120,7 @@ export function PrepScreen() {
                   setShowGallery(true);
                 }}
               >
-                📖 図鑑を見る（部位・敵・キメラ）
+                📖 図鑑を見る（部位・敵・キメラ）{chimeraGallery.length > 0 ? `（${chimeraGallery.length}件）` : ''}
               </button>
               <button
                 className="btn"
@@ -178,6 +171,8 @@ export function PrepScreen() {
         )}
 
         {tab === 'synergy' && <SynergyPanel synergies={synergies} critChancePct={critChancePct} />}
+
+        {tab === 'commands' && <CommandsTab />}
       </div>
 
       {selectedDef && selected && (
@@ -219,26 +214,22 @@ export function PrepScreen() {
       </div>
 
       <nav className="bottom-nav">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            className={`bottom-nav__item${tab === item.id ? ' bottom-nav__item--active' : ''}`}
-            onClick={() => setTab(item.id)}
-          >
-            <span className="bottom-nav__icon">{item.icon}</span>
-            <span className="bottom-nav__label">{item.label}</span>
-          </button>
-        ))}
-        <button
-          className={`bottom-nav__item${unseenCommandCount > 0 ? ' bottom-nav__item--attention' : ''}`}
-          onClick={openCommandEdit}
-        >
-          <span className="bottom-nav__icon">
-            ⚡
-            {unseenCommandCount > 0 && <span className="bottom-nav__badge">{unseenCommandCount > 9 ? '9+' : unseenCommandCount}</span>}
-          </span>
-          <span className="bottom-nav__label">コマンド</span>
-        </button>
+        {NAV_ITEMS.map((item) => {
+          const showBadge = item.id === 'commands' && unseenCommandCount > 0;
+          return (
+            <button
+              key={item.id}
+              className={`bottom-nav__item${tab === item.id ? ' bottom-nav__item--active' : ''}${showBadge ? ' bottom-nav__item--attention' : ''}`}
+              onClick={() => selectTab(item.id)}
+            >
+              <span className="bottom-nav__icon">
+                {item.icon}
+                {showBadge && <span className="bottom-nav__badge">{unseenCommandCount > 9 ? '9+' : unseenCommandCount}</span>}
+              </span>
+              <span className="bottom-nav__label">{item.label}</span>
+            </button>
+          );
+        })}
       </nav>
     </div>
   );
