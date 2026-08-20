@@ -1,0 +1,140 @@
+/* TEST19: CTB(行動順可視化型コマンドバトル)プロトタイプ専用スタイル。
+   本線のcommandSystem.css/index.cssのデザイントークン(--color-*, --radius-*)と
+   既存クラス(.cmd-button__icon 等)をそのまま流用し、CTB固有の見た目だけをここに追加する。
+   TEST18側のCSSファイルは一切変更しない。 */
+
+.ctb-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--color-bg);
+  background: var(--color-cyan);
+  border-radius: var(--radius-pill);
+  vertical-align: middle;
+}
+
+/* --- 行動順タイムライン(要件7) --- */
+.ctb-order {
+  margin: 6px 10px 0;
+  padding: 6px 8px;
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.ctb-order__title {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+.ctb-order__track {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+}
+.ctb-order__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 30px;
+  padding: 3px 4px;
+  border-radius: var(--radius-sm, 6px);
+  opacity: 0.75;
+  font-size: 1rem;
+}
+.ctb-order__item--player {
+  background: rgba(74, 222, 128, 0.18);
+  border: 1px solid rgba(74, 222, 128, 0.5);
+}
+.ctb-order__item--enemy {
+  background: rgba(248, 113, 113, 0.16);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+}
+.ctb-order__item--now {
+  opacity: 1;
+  transform: scale(1.15);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.35);
+}
+.ctb-order__label {
+  font-size: 0.55rem;
+  font-weight: 800;
+  color: var(--color-yellow);
+  height: 0.6rem;
+}
+.ctb-preview-note {
+  margin: 4px 10px 0;
+  font-size: 0.68rem;
+}
+
+/* --- キャラクター表示(CTBは簡易フィギュア。画像合成はTEST18側に任せる) --- */
+.ctb-figure {
+  font-size: 3.2rem;
+  line-height: 1;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.4));
+}
+.ctb-guard-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  font-size: 1.1rem;
+  filter: drop-shadow(0 0 4px rgba(74, 222, 128, 0.8));
+}
+
+/* --- コマンドボタン: 見た目は本線.cmd-buttonに合わせる(色トークンを流用) --- */
+.ctb-command-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+@media (min-width: 520px) {
+  .ctb-command-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.ctb-command {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px;
+  min-height: 82px;
+  min-width: 0; /* grid track(1fr)がnowrap説明文の最小コンテンツ幅で広がりオーバーフローするのを防ぐ */
+  background: var(--color-panel);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: transform 0.1s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+.ctb-command:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.ctb-command:disabled {
+  cursor: not-allowed;
+}
+.ctb-command--usable {
+  opacity: 1;
+  box-shadow: 0 0 10px var(--command-color, rgba(168, 85, 247, 0.35));
+  background: linear-gradient(165deg, var(--color-panel-2), var(--color-panel));
+}
+.ctb-command--selected {
+  border-color: var(--color-yellow) !important;
+  box-shadow: 0 0 14px rgba(250, 204, 21, 0.55);
+}
+
+.ctb-confirm-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 8px;
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+}

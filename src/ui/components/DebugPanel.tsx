@@ -30,7 +30,17 @@ const PROTOTYPE_COMMAND_TEST_PART_IDS = [
   'special_colossal_heart',
 ];
 
-export function DebugPanel({ onOpenTurnTest, onOpenFreeLayerTest }: { onOpenTurnTest?: () => void; onOpenFreeLayerTest?: () => void }) {
+export function DebugPanel({
+  onOpenTurnTest,
+  onOpenFreeLayerTest,
+  ctbMode,
+  onToggleCtbMode,
+}: {
+  onOpenTurnTest?: () => void;
+  onOpenFreeLayerTest?: () => void;
+  ctbMode?: boolean;
+  onToggleCtbMode?: () => void;
+}) {
   const { state, dispatch, battleEngineRef, triggerBattleReset } = useGame();
   const [open, setOpen] = useState(false);
   const [selectedPartId, setSelectedPartId] = useState(ALL_PARTS[0]?.id ?? '');
@@ -216,6 +226,17 @@ export function DebugPanel({ onOpenTurnTest, onOpenFreeLayerTest }: { onOpenTurn
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {onToggleCtbMode && (
+        <div className="debug-panel__group">
+          <label>
+            <input type="checkbox" checked={!!ctbMode} onChange={onToggleCtbMode} /> ⏱ CTB戦闘モード(TEST19プロトタイプ)を使う
+          </label>
+          <span className="muted" style={{ fontSize: '0.68rem' }}>
+            OFFにすると通常戦闘画面(TEST18)に戻ります。次に戦闘フェーズへ入るときから反映されます。
+          </span>
         </div>
       )}
 
